@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ToyStream.Protocol.Core\ToyStream.Protocol.Core.csproj" />
+      <ProjectReference Include="..\ToyStream.Shared\ToyStream.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

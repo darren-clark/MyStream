@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Server", "ToyStream.Server\ToyStream.Server.csproj", "{2C38C8EA-3F9C-4DAA-9023-3D2FA52C6DA9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Client", "ToyStream.Client\ToyStream.Client.csproj", "{938DC143-E71E-48BC-B41B-2DEC06BD9CF5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Protocol.Core", "ToyStream.Protocol.Core\ToyStream.Protocol.Core.csproj", "{A0B955A3-2390-4F72-9ACC-1A331F585043}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Protocol.Test", "ToyStream.Protocol.Test\ToyStream.Protocol.Test.csproj", "{2B2ECB1C-1FCB-4114-ACB7-11CEF109A0BA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Shared", "ToyStream.Shared\ToyStream.Shared.csproj", "{B0150BC8-79D7-45D6-B74E-71C0F9CF720E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2C38C8EA-3F9C-4DAA-9023-3D2FA52C6DA9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2C38C8EA-3F9C-4DAA-9023-3D2FA52C6DA9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2C38C8EA-3F9C-4DAA-9023-3D2FA52C6DA9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2C38C8EA-3F9C-4DAA-9023-3D2FA52C6DA9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{938DC143-E71E-48BC-B41B-2DEC06BD9CF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{938DC143-E71E-48BC-B41B-2DEC06BD9CF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{938DC143-E71E-48BC-B41B-2DEC06BD9CF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{938DC143-E71E-48BC-B41B-2DEC06BD9CF5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0B955A3-2390-4F72-9ACC-1A331F585043}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0B955A3-2390-4F72-9ACC-1A331F585043}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0B955A3-2390-4F72-9ACC-1A331F585043}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0B955A3-2390-4F72-9ACC-1A331F585043}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B2ECB1C-1FCB-4114-ACB7-11CEF109A0BA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B2ECB1C-1FCB-4114-ACB7-11CEF109A0BA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B2ECB1C-1FCB-4114-ACB7-11CEF109A0BA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B2ECB1C-1FCB-4114-ACB7-11CEF109A0BA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0150BC8-79D7-45D6-B74E-71C0F9CF720E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0150BC8-79D7-45D6-B74E-71C0F9CF720E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0150BC8-79D7-45D6-B74E-71C0F9CF720E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0150BC8-79D7-45D6-B74E-71C0F9CF720E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
