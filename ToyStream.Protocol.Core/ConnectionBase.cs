@@ -8,13 +8,16 @@ using Send;
 public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
 {
     private readonly Task readerTask;
+    private readonly CancellationToken cancellationToken;
     private readonly IToyProtocolWriter writer;
     private readonly ResponseCompletionSourceCache cachedCompletionSources = new();
+    
     private ResponseCompletionSource? responseCompletionSource;
     
     protected ConnectionBase(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken)
     {
         this.writer = writer;
+        this.cancellationToken = cancellationToken;
         this.readerTask = reader.Read(this, cancellationToken);
     }
 
@@ -33,7 +36,11 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             return await responseCompletion;
         }
     }
-    
+
+    protected ValueTask SendResponse<T>(T response)
+        where T : struct, Send.IMessage, allows ref struct
+        => this.writer.Write(response, cancellationToken);
+
     ValueTask IToyProtocolHandler.HandleMessage<T>(ref readonly T message)
     {
         if (this.responseCompletionSource?.TrySetResult(message) ?? false)
@@ -41,7 +48,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             return default;
         }
 
-        return this.HandleMessageAsync(message);
+        return this.HandleMessageAsync(in message);
     }
 
     protected abstract ValueTask HandleMessageAsync<T>(ref readonly T message) where T : struct, Protocol.Receive.IMessage;
@@ -129,9 +136,12 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             return (ResponseCompletionSource<T>) source;
         }
     }
-
-    public async ValueTask DisposeAsync()
+    
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         await this.readerTask.ConfigureAwait(false);
+        await this.DisposeAsync().ConfigureAwait(false);
     }
+
+    protected virtual ValueTask DisposeAsync() => default;
 }

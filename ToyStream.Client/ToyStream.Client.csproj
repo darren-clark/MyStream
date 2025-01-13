@@ -11,4 +11,8 @@
       <ProjectReference Include="..\ToyStream.Shared\ToyStream.Shared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Protocol\Send\" />
+    </ItemGroup>
+
 </Project>

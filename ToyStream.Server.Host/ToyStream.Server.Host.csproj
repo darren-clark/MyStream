@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>dotnet-ToyStream-08f67a01-7ee3-4370-9ca8-c521ef769a7c</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ToyStream.Protocol.Core\ToyStream.Protocol.Core.csproj" />
+      <ProjectReference Include="..\ToyStream.Server\ToyStream.Server.csproj" />
+    </ItemGroup>
+</Project>

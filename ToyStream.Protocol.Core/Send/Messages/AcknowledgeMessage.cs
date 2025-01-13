@@ -1,6 +1,6 @@
 ﻿namespace ToyStream.Protocol.Send;
 
-using ToyStream.Shared;
+using Shared;
 
 public ref struct AcknowledgeMessage: IMessage
 {
