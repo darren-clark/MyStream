@@ -4,18 +4,18 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-public readonly struct Utf8String: IDisposable, IProtocolComponent<Utf8String>
+public readonly struct Utf8StringValue: IDisposable, IProtocolComponent<Utf8StringValue>
 {
     private readonly byte[] buffer;
     private readonly ShortValue length;
 
-    private Utf8String(byte[] value, short length)
+    private Utf8StringValue(byte[] value, short length)
     {
         this.buffer = value;
         this.length = length;
     }
 
-    public Utf8String(string value)
+    public Utf8StringValue(string value)
     {
         this.length = (short) Encoding.UTF8.GetByteCount(value);
         this.buffer = ArrayPool<byte>.Shared.Rent(this.length);
@@ -24,7 +24,7 @@ public readonly struct Utf8String: IDisposable, IProtocolComponent<Utf8String>
     
     public string Value => Encoding.UTF8.GetString(new ReadOnlySpan<byte>(this.buffer, 0, this.length));
 
-    public static bool TryRead(ref SequenceReader<byte> reader, [NotNullWhen(true)] out Utf8String? component, out int bytesToRead)
+    public static bool TryRead(ref SequenceReader<byte> reader, [NotNullWhen(true)] out Utf8StringValue? component, out int bytesToRead)
     {
         // Copy reader so we don't advance if we don't have enough to read.
         var tryReader = reader;
@@ -51,7 +51,7 @@ public readonly struct Utf8String: IDisposable, IProtocolComponent<Utf8String>
 
         // Success, set updated reader
         reader = tryReader;
-        component = new Utf8String(stringBuffer, length.Value);
+        component = new Utf8StringValue(stringBuffer, length.Value);
         return true;
     }
     

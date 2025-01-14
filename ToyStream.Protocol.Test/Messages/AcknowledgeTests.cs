@@ -26,7 +26,7 @@ public class AcknowledgeTests
     public void TestReceiveRef()
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[1024]));
-        Assert.That(ReceiveRef.AcknowledgeMessage.TryRead(reader, out var message, out var size), Is.True);
+        Assert.That(ReceiveRef.AcknowledgeMessage.TryRead(ref reader, out var message, out var size), Is.True);
         Assert.That(size, Is.EqualTo(0));
     }
 

@@ -1,0 +1,67 @@
+﻿namespace ToyStream.Shared;
+
+using System.Buffers;
+
+public readonly ref struct Utf8StringRef: IEquatable<Utf8StringValue>
+{
+    private readonly ReadOnlySequence<byte> value;
+
+    public bool Equals(Utf8StringValue? other)
+    {
+        if (other == null) return false;
+        
+        if (other.Span.Length != this.value.Length)
+        {
+            return false;
+        }
+
+        if (this.value.IsSingleSegment)
+        {
+            return other.Span.SequenceEqual(this.value.FirstSpan);
+        }
+
+        var reader = new SequenceReader<byte>(this.value);
+        var otherSpan = other.Span;
+        while(reader.Remaining > 0)
+        {
+            var span = reader.CurrentSpan;
+            if (!span.SequenceEqual(otherSpan[0..span.Length]))
+            {
+                return false;
+            }
+            reader.Advance(span.Length);
+        }
+
+        return true;
+    }
+         
+
+    
+    public override int GetHashCode()
+    {
+        var hashCode = new HashCode();
+        // First if it's a single span, use directly.
+        if (this.value.IsSingleSegment)
+        {
+            hashCode.AddBytes(this.value.FirstSpan);
+            return hashCode.ToHashCode();
+        }
+        
+        // Second if it's small, then copy it to a span.
+        if (this.value.Length <= 128)
+        {
+            Span<byte> buffer = stackalloc byte[(int) this.value.Length];
+            this.value.CopyTo(buffer);
+            hashCode.AddBytes(buffer);
+            return hashCode.ToHashCode();
+        }
+        
+        // Finally fall back to iterating over the sequence.
+        foreach (var b in this.value)
+        {
+            hashCode.Add(b);
+        }
+        
+        return hashCode.ToHashCode();    
+    }
+}

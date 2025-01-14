@@ -4,15 +4,12 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>ToyStream</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\ToyStream.Protocol.Core\ToyStream.Protocol.Core.csproj" />
       <ProjectReference Include="..\ToyStream.Shared\ToyStream.Shared.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Protocol\Send\" />
     </ItemGroup>
 
 </Project>

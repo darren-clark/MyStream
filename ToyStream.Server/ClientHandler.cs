@@ -22,6 +22,7 @@ public abstract class ClientHandler: ConnectionBase
             _ => ThrowNotImplemented()
         };
     }
-    
 
+
+    private ValueTask ThrowNotImplemented() => throw new NotImplementedException();
 }

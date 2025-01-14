@@ -40,7 +40,7 @@ public class CreateTopicTests
     public void TestSend()
     {
         var expectedWriter = new SpanWriter(new byte[1024]);
-        new Send.Utf8String("topic").Write(ref expectedWriter);
+        new Send.Utf8StringValue("topic").Write(ref expectedWriter);
         new Send.ShortValue(3).Write(ref expectedWriter);
         
         var message = this.CreateMessage();

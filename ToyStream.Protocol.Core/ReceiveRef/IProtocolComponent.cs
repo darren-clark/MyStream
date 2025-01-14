@@ -3,7 +3,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 
-public interface IProtocolComponent<T> where T: struct, IProtocolComponent<T>
+public interface IProtocolComponent<T> where T: struct, IProtocolComponent<T>, allows ref struct
 {
     /// <summary>
     /// If there is enough memory to read:
@@ -19,5 +19,5 @@ public interface IProtocolComponent<T> where T: struct, IProtocolComponent<T>
     /// call will succeed. It's possible that the full length could not be determined
     /// without additional data. 
     /// </remarks>
-    public static abstract bool TryRead(ref SequenceReader<byte> reader, [NotNullWhen(true)] out T? component, out int bytesToRead);
+    public static abstract bool TryRead(scoped ref SequenceReader<byte> reader, out T component, out int bytesToRead);
 }

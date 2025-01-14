@@ -5,12 +5,12 @@ using System.Buffers.Binary;
 using System.Text;
 using Shared;
 
-public class Utf8StringTests
+public class Utf8StringValueTests
 {
     [Test]
     public void TestSend()
     {
-        var value = new Send.Utf8String("Hello");
+        var value = new Send.Utf8StringValue("Hello");
         var encoded = Encoding.UTF8.GetBytes("Hello");
         
         Assert.That(value.Size, Is.EqualTo(2+encoded.Length));
@@ -27,7 +27,7 @@ public class Utf8StringTests
     public void TestReceive_NotEnoughForSize()
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[1]));
-        Assert.That(Receive.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(Receive.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(1));    
     }
@@ -38,7 +38,7 @@ public class Utf8StringTests
         var buffer = new byte[2];
         BinaryPrimitives.WriteInt16BigEndian(buffer, 6);
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(Receive.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(Receive.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(6));
     }
@@ -50,7 +50,7 @@ public class Utf8StringTests
         var buffer = new byte[4];
         BinaryPrimitives.WriteInt16BigEndian(buffer, 6);
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(Receive.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(Receive.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(4));
     }
@@ -64,7 +64,7 @@ public class Utf8StringTests
         BinaryPrimitives.WriteInt16BigEndian(buffer, (short) value.Length);
         value.CopyTo(buffer.AsSpan(2));
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(Receive.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.True);
+        Assert.That(Receive.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.True);
         Assert.That(component, Is.Not.Null);
         Assert.That(bytesToRead, Is.EqualTo(0));
         Assert.That(reader.Consumed, Is.EqualTo(2+value.Length));
@@ -75,7 +75,7 @@ public class Utf8StringTests
     public void TestReceiveRef_NotEnoughForSize()
     {
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[1]));
-        Assert.That(ReceiveRef.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(ReceiveRef.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(1));    
     }
@@ -86,7 +86,7 @@ public class Utf8StringTests
         var buffer = new byte[2];
         BinaryPrimitives.WriteInt16BigEndian(buffer, 6);
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(ReceiveRef.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(ReceiveRef.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(6));
     }
@@ -98,7 +98,7 @@ public class Utf8StringTests
         var buffer = new byte[4];
         BinaryPrimitives.WriteInt16BigEndian(buffer, 6);
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(ReceiveRef.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
+        Assert.That(ReceiveRef.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.False);
         Assert.That(component, Is.Null);
         Assert.That(bytesToRead, Is.EqualTo(4));
     }
@@ -112,7 +112,7 @@ public class Utf8StringTests
         BinaryPrimitives.WriteInt16BigEndian(buffer, (short) value.Length);
         value.CopyTo(buffer.AsSpan(2));
         var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(buffer));
-        Assert.That(ReceiveRef.Utf8String.TryRead(ref reader, out var component, out var bytesToRead), Is.True);
+        Assert.That(ReceiveRef.Utf8StringValue.TryRead(ref reader, out var component, out var bytesToRead), Is.True);
         Assert.That(component, Is.Not.Null);
         Assert.That(bytesToRead, Is.EqualTo(0));
         Assert.That(reader.Consumed, Is.EqualTo(2+value.Length));

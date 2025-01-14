@@ -4,19 +4,19 @@ using System.Buffers;
 
 public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
 {
-    public Utf8String TopicName { get; private init; }
+    public Utf8StringValue TopicName { get; private init; }
     public ShortValue PartitionCount { get; private init; }
     
 
-    public static bool TryRead(SequenceReader<byte> reader, out CreateTopicMessage component, out int size)
+    public static bool TryRead(scoped ref SequenceReader<byte> reader, out CreateTopicMessage component, out int bytesToRead)
     {
-        if (!Utf8String.TryRead(ref reader, out var topic, out size))
+        if (!Utf8StringValue.TryRead(ref reader, out var topic, out bytesToRead))
         {
             component = default;
             return false;
         }
 
-        if (!ShortValue.TryRead(ref reader, out var partitionCount, out size))
+        if (!ShortValue.TryRead(ref reader, out var partitionCount, out bytesToRead))
         {
             component = default;
             return false;
@@ -24,8 +24,8 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
 
         component = new CreateTopicMessage
         {
-            TopicName = topic.Value,
-            PartitionCount = partitionCount.Value,
+            TopicName = topic,
+            PartitionCount = partitionCount,
         };
         
         // This is not a ref input, so return the amount read.

@@ -2,7 +2,7 @@
 
 using Shared;
 
-public  readonly ref struct ShortValue: IProtocolComponent
+public readonly struct ShortValue: IProtocolComponent
 {
     private readonly short value;
 
@@ -12,6 +12,8 @@ public  readonly ref struct ShortValue: IProtocolComponent
     }
 
     public int Size => sizeof(short);
+
+    public short Value => this.value;
     
     public void Write(ref SpanWriter writer)
     {

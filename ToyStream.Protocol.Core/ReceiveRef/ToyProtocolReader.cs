@@ -56,7 +56,7 @@ public sealed class ToyProtocolReader: IToyProtocolReader
             var bufferReader = new SequenceReader<byte>(buffer);
             T message;
             int size;
-            while(!T.TryRead(bufferReader, out message, out size))
+            while(!T.TryRead(ref bufferReader, out message, out size))
             {
                 this.reader.AdvanceTo(buffer.Start, buffer.End);
                 var read = await this.reader.ReadAtLeastAsync(size, cancellationToken).ConfigureAwait(false);

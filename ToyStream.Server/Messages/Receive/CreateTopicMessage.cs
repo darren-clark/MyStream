@@ -5,14 +5,14 @@ using System.Diagnostics.CodeAnalysis;
 
 public readonly struct CreateTopicMessage: IMessage, IProtocolComponent<CreateTopicMessage>
 {
-    public Utf8String TopicName { get; private init; }
+    public Utf8StringValue TopicName { get; private init; }
     public ShortValue PartitionCount { get; private init; }
 
 
     public static bool TryRead(ref SequenceReader<byte> reader, [NotNullWhen(true)] out CreateTopicMessage? component, out int bytesToRead)
     {
         var tryReader = reader;
-        if (!Utf8String.TryRead(ref tryReader, out var topic, out bytesToRead))
+        if (!Utf8StringValue.TryRead(ref tryReader, out var topic, out bytesToRead))
         {
             component = default;
             return false;
