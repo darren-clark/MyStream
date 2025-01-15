@@ -8,7 +8,7 @@ public class CreateTopicTests
     // Creates a buffer containing a serialized CreateTopicMessage with the topic "topic" and partition count 3
     private Span<byte> CreateMessage()
     {
-        var writer = new SpanWriter(new byte[1024]);
+        var writer = new BigEndianSpanWriter(new byte[1024]);
         new Send.CreateTopicMessage("topic", 3).Write(ref writer);
         return writer.Written;
     }
@@ -39,7 +39,7 @@ public class CreateTopicTests
     [Order(1)]
     public void TestSend()
     {
-        var expectedWriter = new SpanWriter(new byte[1024]);
+        var expectedWriter = new BigEndianSpanWriter(new byte[1024]);
         new Send.Utf8StringValue("topic").Write(ref expectedWriter);
         new Send.ShortValue(3).Write(ref expectedWriter);
         

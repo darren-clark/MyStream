@@ -6,5 +6,5 @@ public ref struct AcknowledgeMessage: IMessage
 {
     public MessageType Type => MessageType.Acknowledge;
     public int Size => 0;
-    public void Write(ref SpanWriter writer) { }
+    public void Write(ref BigEndianSpanWriter writer) { }
 }

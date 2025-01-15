@@ -35,7 +35,7 @@ public class ShortValueTests
     {
         var value = new Send.ShortValue(12);
         var buffer = new byte [value.Size];
-        var writer = new SpanWriter(buffer);
+        var writer = new BigEndianSpanWriter(buffer);
         value.Write(ref writer);
         
         Assert.That(BinaryPrimitives.ReadInt16BigEndian(buffer), Is.EqualTo(12));

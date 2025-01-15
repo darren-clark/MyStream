@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Shared", "ToyStre
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Server", "ToyStream.Server\ToyStream.Server.csproj", "{1641575C-40F3-4517-B97B-24B3D6C969C7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Protocol", "ToyStream.Protocol\ToyStream.Protocol.csproj", "{67EDFA1B-AFD5-46E2-9127-67D63E09D82C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{1641575C-40F3-4517-B97B-24B3D6C969C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1641575C-40F3-4517-B97B-24B3D6C969C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1641575C-40F3-4517-B97B-24B3D6C969C7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67EDFA1B-AFD5-46E2-9127-67D63E09D82C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67EDFA1B-AFD5-46E2-9127-67D63E09D82C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67EDFA1B-AFD5-46E2-9127-67D63E09D82C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67EDFA1B-AFD5-46E2-9127-67D63E09D82C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

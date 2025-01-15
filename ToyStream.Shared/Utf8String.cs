@@ -3,26 +3,26 @@
 using System.Buffers;
 using System.Text;
 
-public class Utf8StringValue: IEquatable<Utf8StringValue>
+public class Utf8String: IEquatable<Utf8String>
 {
     private readonly Memory<byte> value;
 
-    public Utf8StringValue(string value)
+    public Utf8String(string value)
     {
         this.value = Encoding.UTF8.GetBytes(value);
     }
 
-    public Utf8StringValue(Span<byte> value)
+    public Utf8String(ReadOnlySpan<byte> value)
     {
         this.value = this.value.ToArray();
     }
 
-    public Utf8StringValue(ReadOnlySequence<byte> value)
+    public Utf8String(ReadOnlySequence<byte> value)
     {
         this.value = this.value.ToArray();
     }
     
-    public bool Equals(Utf8StringValue? other) =>
+    public bool Equals(Utf8String? other) =>
         other switch
         {
             null => false,
@@ -32,7 +32,7 @@ public class Utf8StringValue: IEquatable<Utf8StringValue>
     public override bool Equals(object? obj) =>
         obj switch
         {
-            Utf8StringValue utf8String => Equals(utf8String),
+            Utf8String utf8String => Equals(utf8String),
             _ => false
         };
 
@@ -44,4 +44,6 @@ public class Utf8StringValue: IEquatable<Utf8StringValue>
     }
 
     public ReadOnlySpan<byte> Span => this.value.Span;
+    
+    public static implicit operator RefUtf8String(Utf8String value) => new(new ReadOnlySequence<byte>(value.value));
 }

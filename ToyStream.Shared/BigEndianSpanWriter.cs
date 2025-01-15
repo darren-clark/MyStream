@@ -1,23 +1,25 @@
 ﻿namespace ToyStream.Shared;
 
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
-public ref struct SpanWriter
+public ref struct BigEndianSpanWriter
 {
-    private readonly Span<byte> span;
+    private readonly Span<byte> buffer;
     
-    public SpanWriter(Span<byte> span)
+    public BigEndianSpanWriter(Span<byte> buffer)
     {
-        this.span = span;
+        this.buffer = buffer;
     }
 
-    public static implicit operator SpanWriter(Span<byte> span) => new(span);
+    public static implicit operator BigEndianSpanWriter(Span<byte> span) => new(span);
 
     private int writtenBytes = 0;
-    public Span<byte> Written => this.span[..this.writtenBytes];
     
-    public Span<byte> Remaining => this.span.Slice(this.writtenBytes);
+    public Span<byte> Written => this.buffer[..this.writtenBytes];
+    
+    public Span<byte> Remaining => this.buffer[this.writtenBytes..];
 
     public void Advance(int written)
     {
@@ -48,10 +50,22 @@ public ref struct SpanWriter
         Advance(sizeof(long));
     }
     
-    public void Write(Span<byte> value)
+    public void Write(ReadOnlySpan<byte> value)
     {
         value.CopyTo(this.Remaining);
         Advance(value.Length);
+    }
+    
+    public void Write(ReadOnlySequence<byte> value)
+    {
+        value.CopyTo(this.Remaining);
+        Advance((int) value.Length);
+    }
+    
+    public void Write(RefUtf8String value)
+    {
+        this.Write(value.Length);
+        this.Write(value.Sequence);
     }
     
     public void Write<T>(T value) where T: struct, Enum

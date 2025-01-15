@@ -16,7 +16,7 @@ public class Utf8StringValueTests
         Assert.That(value.Size, Is.EqualTo(2+encoded.Length));
         
         Span<byte> buffer = new byte[value.Size];
-        var writer = new SpanWriter(buffer);
+        var writer = new BigEndianSpanWriter(buffer);
         value.Write(ref writer);
         Assert.That(writer.Written.Length, Is.EqualTo(value.Size));
         Assert.That(BinaryPrimitives.ReadInt16BigEndian(writer.Written), Is.EqualTo(encoded.Length));

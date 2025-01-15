@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public interface IConvertibleTo<in TIn, out TOut> where TIn : IConvertibleTo<TIn, TOut>
+public interface IConvertibleTo<in TIn, out TOut> where TIn : IConvertibleTo<TIn, TOut>,allows ref struct
 {
     public static abstract implicit operator TOut(TIn value);
 }

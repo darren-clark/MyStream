@@ -8,6 +8,7 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
     public ShortValue PartitionCount { get; private init; }
     
 
+    
     public static bool TryRead(scoped ref SequenceReader<byte> reader, out CreateTopicMessage component, out int bytesToRead)
     {
         if (!Utf8StringValue.TryRead(ref reader, out var topic, out bytesToRead))
@@ -27,9 +28,8 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
             TopicName = topic,
             PartitionCount = partitionCount,
         };
-        
-        // This is not a ref input, so return the amount read.
-        size = (int) reader.Consumed;
+
+        bytesToRead = 0;
         return true;
     }
 }

@@ -8,7 +8,7 @@ public class AcknowledgeTests
     [Test]
     public void TestSend()
     {
-        var writer = new SpanWriter(new byte[1024]);
+        var writer = new BigEndianSpanWriter(new byte[1024]);
         new Send.AcknowledgeMessage().Write(ref writer);
         Assert.That(writer.Written.Length, Is.EqualTo(0));
     }

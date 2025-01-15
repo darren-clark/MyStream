@@ -24,5 +24,6 @@ public readonly ref struct ShortValue : IProtocolComponent<ShortValue>
 
         bytesToRead = 2;
         component = new ShortValue(reader.UnsafeReadInt16BigEndian());
+        return true;
     }
 }

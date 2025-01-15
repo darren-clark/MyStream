@@ -8,6 +8,7 @@ public interface IToyProtocolReader
 {
     Task Read(IToyProtocolHandler handler, CancellationToken cancellationToken);
 }
+
 public sealed class ToyProtocolReader: IToyProtocolReader
 {
     private readonly PipeReader reader;

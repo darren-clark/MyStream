@@ -17,7 +17,7 @@ public readonly ref struct CreateTopicMessage: IMessage
 
     public int Size => this.topicName.Size + this.partitionCount.Size;
     
-    public void Write(ref SpanWriter writer)
+    public void Write(ref BigEndianSpanWriter writer)
     {
         this.topicName.Write(ref writer);
         this.partitionCount.Write(ref writer);

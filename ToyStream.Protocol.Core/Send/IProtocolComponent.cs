@@ -5,5 +5,5 @@ using Shared;
 public interface IProtocolComponent
 {
     public int Size { get; }
-    public void Write(ref SpanWriter writer);
+    public void Write(ref BigEndianSpanWriter writer);
 }

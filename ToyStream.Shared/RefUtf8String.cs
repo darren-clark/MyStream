@@ -2,11 +2,21 @@
 
 using System.Buffers;
 
-public readonly ref struct Utf8StringRef: IEquatable<Utf8StringValue>
+public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IConvertibleTo<RefUtf8String, Utf8String>
 {
     private readonly ReadOnlySequence<byte> value;
 
-    public bool Equals(Utf8StringValue? other)
+    public RefUtf8String(ReadOnlySequence<byte> value)
+    {
+        this.value = value;
+    }
+    
+    public ReadOnlySequence<byte> Sequence => this.value;
+    public short Length => (short) this.value.Length;
+
+    public static implicit operator Utf8String(RefUtf8String value) => new Utf8String(value.value);
+
+    public bool Equals(Utf8String? other)
     {
         if (other == null) return false;
         
@@ -34,9 +44,7 @@ public readonly ref struct Utf8StringRef: IEquatable<Utf8StringValue>
 
         return true;
     }
-         
 
-    
     public override int GetHashCode()
     {
         var hashCode = new HashCode();

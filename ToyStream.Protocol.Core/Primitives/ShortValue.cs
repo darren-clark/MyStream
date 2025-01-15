@@ -1,8 +1,8 @@
-﻿namespace ToyStream.Protocol.Send;
+﻿namespace ToyStream.Protocol.Primitives;
 
 using Shared;
 
-public readonly struct ShortValue: IProtocolComponent
+public readonly struct ShortValue
 {
     private readonly short value;
 
@@ -15,7 +15,7 @@ public readonly struct ShortValue: IProtocolComponent
 
     public short Value => this.value;
     
-    public void Write(ref SpanWriter writer)
+    public void Write(ref BigEndianSpanWriter writer)
     {
         writer.Write(this.value);
     }

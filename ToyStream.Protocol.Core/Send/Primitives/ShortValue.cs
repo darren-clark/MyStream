@@ -15,7 +15,7 @@ public readonly struct ShortValue: IProtocolComponent
 
     public short Value => this.value;
     
-    public void Write(ref SpanWriter writer)
+    public void Write(ref BigEndianSpanWriter writer)
     {
         writer.Write(this.value);
     }
