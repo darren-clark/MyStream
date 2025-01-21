@@ -7,8 +7,11 @@ using ToyStream.Protocol.Benchmark;
 
 
 var summary = BenchmarkRunner.Run<Benchmarks>();
-// var bench = new Benchmarks();
-// bench.MessageRuns = 1000;
+// var bench = new Benchmarks
+// {
+//     MessageRuns = 10000
+// };
+// await bench.SimpleMessageFlow();
 // bench.SetupFakeServer();
 // await bench.SimpleMessageFlow();
 // await bench.Cleanup();
