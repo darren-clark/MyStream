@@ -1,4 +1,4 @@
-﻿namespace ToyStream.Protocol.Messages;
+﻿namespace ToyStream.Protocol.Messages.Send;
 
 public interface IMessage
 {

@@ -1,16 +1,14 @@
 namespace ToyStream.Protocol.Test;
 
 using System.IO.Pipelines;
-using System.Threading.Channels;
-using Client;
-using ReceiveRef;
-using Send;
+using Protocol.Messages;
+using Responses;
 using Shared;
-using AcknowledgeMessage = Receive.AcknowledgeMessage;
-using IMessage = Receive.IMessage;
-using IToyProtocolHandler = Receive.IToyProtocolHandler;
-using IToyProtocolReader = Receive.IToyProtocolReader;
-using ToyProtocolReader = Receive.ToyProtocolReader;
+// using AcknowledgeMessage = Receive.AcknowledgeMessage;
+// using IMessage = Receive.IMessage;
+// using IToyProtocolHandler = Receive.IToyProtocolHandler;
+// using IToyProtocolReader = Receive.IToyProtocolReader;
+// using ToyProtocolReader = Receive.ToyProtocolReader;
 
 public class Tests
 {
@@ -20,7 +18,7 @@ public class Tests
     }
 
     [Test]
-    public async Task Test1()
+    public async Task TestClientWait()
     {
         // Client connection, reader is reading from the "server"
         // writer is writing to the "server"
@@ -29,12 +27,12 @@ public class Tests
         // writer is writing to the "client"
         var serverPipe = new Pipe();
         var cancellation = new CancellationTokenSource();
-        var clientConnection = new TestClientConnection(new ToyProtocolReader(serverPipe.Reader, "Client"), new ToyProtocolWriter(clientPipe.Writer), cancellation.Token);
+        var clientConnection = new TestClientConnection(new ToyProtocolPipeReader(serverPipe.Reader, "Client"), new ToyProtocolPipeWriter(clientPipe.Writer), cancellation.Token);
         
         // Writer for our "server". Writes to the pipe the client is reading.
-        var serverWriter = new ToyProtocolWriter(serverPipe.Writer);
+        var serverWriter = new ToyProtocolPipeWriter(serverPipe.Writer);
         // Reader for our "server". Reads from the pipe the client is writing to.
-        var serverReader = new ToyProtocolReader(clientPipe.Reader, "Server");
+        var serverReader = new ToyProtocolPipeReader(clientPipe.Reader, "Server");
         // Handler for our "server"
         var serverHandler = new DebugHandler();
         // Start the server
@@ -49,9 +47,12 @@ public class Tests
         // 5. We're going to cancel the token, which will cause the "server" to stop reading.
         // 6. We're going to await the serverTask, which should throw an OperationCanceledException.
         var testTask = clientConnection.CreateTopic("Topic", 4);
-        await serverWriter.Write(new Protocol.Send.AcknowledgeMessage(), default);
+        await serverWriter.Write(new AcknowledgeMessage(), default);
         await testTask;
-        var message = await serverHandler.Task;
+        testTask = clientConnection.CreateTopic("Topic", 4);
+        await serverWriter.Write(new AcknowledgeMessage(), default);
+        await testTask;
+        await serverHandler.Task;
         await cancellation.CancelAsync();
         try
         {
@@ -62,18 +63,57 @@ public class Tests
         }
     }
 
-    private class DebugHandler : IToyProtocolHandler
+    [Test]
+    public async Task TestServerRoundTrip()
     {
-        private readonly TaskCompletionSource<IMessage> tcs = new TaskCompletionSource<IMessage>();
-        
-        public ValueTask HandleMessage<T>(ref readonly T message) where T : struct, IMessage
+        // Client connection, reader is reading from the "server"
+        // writer is writing to the "server"
+        var clientPipe =  new Pipe();
+        // Server connection, reader is reading from the "client"
+        // writer is writing to the "client"
+        var serverPipe = new Pipe();
+        var cancellation = new CancellationTokenSource();
+        var clientConnection = new TestClientConnection(new ToyProtocolPipeReader(serverPipe.Reader, "Client"), new ToyProtocolPipeWriter(clientPipe.Writer), cancellation.Token);
+        await using var _ = new TestServerConnection(new ToyProtocolPipeReader(clientPipe.Reader), new ToyProtocolPipeWriter(serverPipe.Writer), cancellation.Token);
+        for(var i = 0; i< 100; i++)
         {
-            Console.WriteLine(message.ToString());
-            this.tcs.TrySetResult(message);
-            return ValueTask.CompletedTask;
+            Console.WriteLine($"Attempt {i}");
+            await clientConnection.CreateTopic("test", 1);
+        }
+        await cancellation.CancelAsync();
+    }
+    
+    // All we do is simply ack the request.
+    private class TestServerConnection : ConnectionBase
+    {
+       
+        public TestServerConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken) : base(reader, writer, cancellationToken)
+        {
         }
 
-        public Task<IMessage> Task => this.tcs.Task;
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+        {
+            return SendResponse(new AcknowledgeMessage());
+        }
+    }
+    
+    private class DebugHandler : IToyProtocolHandler
+    {
+        private readonly TaskCompletionSource tcs = new TaskCompletionSource();
+        
+        public Task Task => this.tcs.Task;
+
+
+        public ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+        {
+            this.tcs.TrySetResult();
+            return default;
+        }
+
+        public ValueTask HandleResponseMessage<T>(ref readonly T message) where T : struct, IResponseMessage<T>
+        {
+            return default;
+        }
     }
     
     private class TestClientConnection : ConnectionBase
@@ -84,13 +124,16 @@ public class Tests
 
         public async Task CreateTopic(string topicName, short partitionCount)
         {
-            var message = new Send.CreateTopicMessage(topicName, partitionCount);
-            await SendMessage<Send.CreateTopicMessage, AcknowledgeMessage>(message, default);
+            var message = new CreateTopicMessage {
+                TopicName = new Utf8String(topicName),
+                PartitionCount = partitionCount
+            };
+            await SendMessage<CreateTopicMessage, AcknowledgeMessage>(message, default);
         }
 
-        protected override ValueTask HandleMessageAsync<T>(ref readonly T message)
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
         {
-            return ValueTask.CompletedTask;
+            throw new NotImplementedException();
         }
     }
 }

@@ -1,16 +1,14 @@
-﻿namespace ToyStream.Protocol.Send;
+﻿namespace ToyStream.Protocol;
 
 using System.IO.Pipelines;
-using Shared;
 
 public sealed class ToyProtocolPipeWriter(PipeWriter pipe): IToyProtocolWriter
 {
     public ValueTask Write<T>(T message, CancellationToken cancellationToken) where T : struct, IMessage<T>, allows ref struct
     {
-        BigEndianSpanWriter bigEndianSpanWriter = pipe.GetSpan(message.Size + sizeof(MessageType));
-        bigEndianSpanWriter.Write(message.Type);
-        message.Write(ref bigEndianSpanWriter);
-        pipe.Advance(bigEndianSpanWriter.Written.Length);
+        PrimitiveWriter<PipeWriter> writer = new PrimitiveWriter<PipeWriter>(pipe);
+        writer.Write(message.Type);
+        message.Write(writer);
 
         return Flush();
 

@@ -12,11 +12,7 @@ public class Worker(ILogger<Worker> logger, ClientHandlerFactory clientHandlerFa
 
         await socketListener.Listen(options.CurrentValue.Port, Accept, stoppingToken);
 
-        
-        void Accept(Socket socket)
-        {
-            var clientHandler = clientHandlerFactory.CreateClientHandler(socket, stoppingToken);
-            
-        }
+
+        void Accept(Socket socket) => clientHandlerFactory.CreateClientHandler(socket, stoppingToken);
     }
 }

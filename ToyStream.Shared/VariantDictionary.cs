@@ -6,9 +6,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public interface IConvertibleTo<in TIn, out TOut> where TIn : IConvertibleTo<TIn, TOut>,allows ref struct
+public interface ICopyableTo<in TIn, out TOut> where TIn : ICopyableTo<TIn, TOut>,allows ref struct
 {
-    public static abstract implicit operator TOut(TIn value);
+    
+    // Operator because multiple implementations will overlap.
+    // Explicit because it may allocate
+    public static abstract explicit operator TOut(TIn value);
 }
 
 /// <summary>
@@ -33,12 +36,6 @@ public class VariantDictionary<TKey, TValue> :
     IDictionary<TKey, TValue>,
     IReadOnlyDictionary<TKey, TValue> where TKey : IEquatable<TKey>
 {
-    // constants for serialization
-    private const string VersionName = "Version"; // Do not rename (binary serialization)
-    private const string HashSizeName = "HashSize"; // Do not rename (binary serialization). Must save buckets.Length
-    private const string KeyValuePairsName = "KeyValuePairs"; // Do not rename (binary serialization)
-    private const string ComparerName = "Comparer"; // Do not rename (binary serialization)
-
     private int[]? _buckets;
     private Entry[]? _entries;
 #if TARGET_64BIT
@@ -193,7 +190,7 @@ public class VariantDictionary<TKey, TValue> :
         Debug.Assert(modified); // If there was an existing key and the Add failed, an exception will already have been thrown.
     }
 
-    public void Add<T>(T key, TValue value) where T : IConvertibleTo<T, TKey>
+    public void Add<T>(T key, TValue value) where T : ICopyableTo<T, TKey>
     {
         Add((TKey)key, value);
     }
@@ -770,8 +767,8 @@ public class VariantDictionary<TKey, TValue> :
     public bool TryAdd(TKey key, TValue value) =>
         TryInsert(key, value, InsertionBehavior.None);
 
-    public bool TryAdd<T>(T key, TValue value) where T : IConvertibleTo<T,TKey> =>
-        TryInsert(key, value, InsertionBehavior.None);
+    public bool TryAdd<T>(T key, TValue value) where T : ICopyableTo<T,TKey> =>
+        TryInsert((TKey) key, value, InsertionBehavior.None);
 
     bool ICollection<KeyValuePair<TKey, TValue>>.IsReadOnly => false;
 
@@ -1100,6 +1097,7 @@ public class VariantDictionary<TKey, TValue> :
                 if (objects == null)
                 {
                     ThrowHelper.ThrowArgumentException_Argument_IncompatibleArrayType();
+                    return;
                 }
 
                 int count = _dictionary._count;
@@ -1272,6 +1270,7 @@ public class VariantDictionary<TKey, TValue> :
                 if (objects == null)
                 {
                     ThrowHelper.ThrowArgumentException_Argument_IncompatibleArrayType();
+                    return;
                 }
 
                 int count = _dictionary._count;
@@ -1419,7 +1418,7 @@ internal abstract class GenericEmptyEnumeratorBase : IDisposable, IEnumerator
         get
         {
             ThrowHelper.ThrowInvalidOperationException_EnumCurrent(-1);
-            return default;
+            return default!;
         }
     }
 
@@ -1452,7 +1451,7 @@ file sealed class GenericEmptyEnumerator<T> : GenericEmptyEnumeratorBase, IEnume
         get
         {
             ThrowHelper.ThrowInvalidOperationException_EnumCurrent(-1);
-            return default;
+            return default!;
         }
     }
 }

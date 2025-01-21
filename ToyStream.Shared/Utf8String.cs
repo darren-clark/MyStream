@@ -5,7 +5,7 @@ using System.Text;
 
 public class Utf8String: IEquatable<Utf8String>
 {
-    private readonly Memory<byte> value;
+    private readonly ReadOnlyMemory<byte> value;
 
     public Utf8String(string value)
     {
@@ -43,7 +43,7 @@ public class Utf8String: IEquatable<Utf8String>
         return hashCode.ToHashCode();
     }
 
-    public ReadOnlySpan<byte> Span => this.value.Span;
-    
-    public static implicit operator RefUtf8String(Utf8String value) => new(new ReadOnlySequence<byte>(value.value));
+    public ReadOnlyMemory<byte> Memory => this.value;
+    public static explicit operator Utf8String(string value) => new(value);
+    public static explicit operator string (Utf8String value) => Encoding.UTF8.GetString(value.value.Span);
 }

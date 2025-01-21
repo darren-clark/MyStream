@@ -1,8 +1,9 @@
 ﻿namespace ToyStream.Shared;
 
 using System.Buffers;
+using System.Text;
 
-public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IConvertibleTo<RefUtf8String, Utf8String>
+public readonly ref struct RefUtf8String: IEquatable<Utf8String>, ICopyableTo<RefUtf8String, Utf8String>
 {
     private readonly ReadOnlySequence<byte> value;
 
@@ -10,28 +11,35 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IConvertibleTo
     {
         this.value = value;
     }
+
+    public RefUtf8String(Utf8String value)
+    {
+        this.value = new ReadOnlySequence<byte>(value.Memory);
+    }
     
     public ReadOnlySequence<byte> Sequence => this.value;
     public short Length => (short) this.value.Length;
 
-    public static implicit operator Utf8String(RefUtf8String value) => new Utf8String(value.value);
+    public static explicit operator Utf8String(RefUtf8String value) => new Utf8String(value.value);
+    public static explicit operator string(RefUtf8String value) => Encoding.UTF8.GetString(value.value);
+    public static implicit operator RefUtf8String(Utf8String value) => new RefUtf8String(value);
 
     public bool Equals(Utf8String? other)
     {
         if (other == null) return false;
         
-        if (other.Span.Length != this.value.Length)
+        if (other.Memory.Length != this.value.Length)
         {
             return false;
         }
 
         if (this.value.IsSingleSegment)
         {
-            return other.Span.SequenceEqual(this.value.FirstSpan);
+            return other.Memory.Span.SequenceEqual(this.value.FirstSpan);
         }
 
         var reader = new SequenceReader<byte>(this.value);
-        var otherSpan = other.Span;
+        var otherSpan = other.Memory.Span;
         while(reader.Remaining > 0)
         {
             var span = reader.CurrentSpan;

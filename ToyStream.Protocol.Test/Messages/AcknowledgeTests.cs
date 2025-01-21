@@ -1,33 +1,39 @@
 ﻿namespace ToyStream.Protocol.Test.Messages;
 
 using System.Buffers;
-using Shared;
+using Responses;
+
+using static ProtocolTestHelpers;
 
 public class AcknowledgeTests
 {
+    private static void GetWriteBuffer(out ArrayBufferWriter<byte> buffer, out PrimitiveWriter<ArrayBufferWriter<byte>> writer, int size = 1024)
+    {
+        buffer = new ArrayBufferWriter<byte>(1024);
+        writer = new (buffer);
+    }
+    
+    private static void GetReadBuffer(out ReadOnlySequence<byte> buffer, out PrimitiveReader reader)
+    {
+        buffer = new ReadOnlySequence<byte>(new byte[1024]);
+        reader = new (buffer);
+    }
+    
     [Test]
     public void TestSend()
     {
-        var writer = new BigEndianSpanWriter(new byte[1024]);
-        new Send.AcknowledgeMessage().Write(ref writer);
-        Assert.That(writer.Written.Length, Is.EqualTo(0));
+
+        GetWriteBuffer(out var buffer, out var writer);
+        ((IMessage<AcknowledgeMessage>)new AcknowledgeMessage()).Write(writer);
+        Assert.That(buffer.WrittenCount, Is.EqualTo(0));
     }
 
     [Test]
     public void TestReceive()
     {
-        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[1024]));
-        Assert.That(Receive.AcknowledgeMessage.TryRead(ref reader, out var message, out var bytesToRead), Is.True);
-        Assert.That(message, Is.Not.Null);
+        GetReadBuffer(out var buffer, out var reader);
+        Assert.That(TryReadMessage<AcknowledgeMessage>(ref reader, out var message, out var bytesToRead), Is.True);
         Assert.That(bytesToRead, Is.EqualTo(0));
+        Assert.That(reader.Consumed, Is.EqualTo(0));
     }
-    
-    [Test]
-    public void TestReceiveRef()
-    {
-        var reader = new SequenceReader<byte>(new ReadOnlySequence<byte>(new byte[1024]));
-        Assert.That(ReceiveRef.AcknowledgeMessage.TryRead(ref reader, out var message, out var size), Is.True);
-        Assert.That(size, Is.EqualTo(0));
-    }
-
 }

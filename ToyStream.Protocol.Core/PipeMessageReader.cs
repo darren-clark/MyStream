@@ -1,32 +1,29 @@
-﻿namespace ToyStream.Protocol.Receive;
+﻿namespace ToyStream.Protocol;
 
 using System.Buffers;
 using System.IO.Pipelines;
 using System.Runtime.InteropServices;
+using Messages;
 
-public interface IToyProtocolReader
+public class PipeMessageReader: IMessageReader
 {
-    Task Read(IToyProtocolHandler handler, CancellationToken cancellationToken);
-}
-
-public sealed class ToyProtocolReader: IToyProtocolReader
-{
-    private readonly PipeReader reader;
+    private readonly PipeReader pipe;
     
-    public ToyProtocolReader(PipeReader reader)
+    public PipeMessageReader(PipeReader pipe)
     {
-        this.reader = reader;
+        this.pipe = pipe;
     }
-
-    #if DEBUG
+    
+#if DEBUG
     private readonly string tag;
     
-    public ToyProtocolReader(PipeReader reader, string tag):this(reader)
+    public PipeMessageReader(PipeReader reader, string tag):this(reader)
     {
         this.tag = tag;
     }
-    #endif
-    public async Task Read(IToyProtocolHandler handler, CancellationToken cancellationToken)
+#endif
+    
+    public async Task Read(IMessageHandler handler, CancellationToken cancellationToken)
     {
         await Task.Yield();
         var buffer = ReadOnlySequence<byte>.Empty;
@@ -49,7 +46,7 @@ public sealed class ToyProtocolReader: IToyProtocolReader
         {
             if (buffer.Length < sizeof(MessageType))
             {
-                var result = await this.reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                var result = await this.pipe.ReadAsync(cancellationToken).ConfigureAwait(false);
                 buffer = result.Buffer;
             }
             var messageBuffer = buffer.Slice(0, 1);
@@ -58,26 +55,19 @@ public sealed class ToyProtocolReader: IToyProtocolReader
             return messageType;
         }
             
-        async ValueTask<T> ReadComponent<T>() where T: struct, IProtocolComponent<T>
+        async ValueTask HandleMessage<T>() where T : struct, IMessage<T>, allows ref struct
         {
             var bufferReader = new SequenceReader<byte>(buffer);
-            T? component;
-            while(!T.TryRead(ref bufferReader, out component, out var toRead))
+            var read = T.TryRead(ref bufferReader, out var message, out var bytesToRead);
+            while (!read)
             {
-                this.reader.AdvanceTo(buffer.Start, buffer.End);
-                var read = await this.reader.ReadAtLeastAsync(toRead, cancellationToken).ConfigureAwait(false);
-                buffer = read.Buffer;
-                bufferReader = new SequenceReader<byte>(read.Buffer);
+                this.pipe.AdvanceTo(buffer.Start, buffer.End);
+                var readResult = await this.pipe.ReadAtLeastAsync(bytesToRead, cancellationToken).ConfigureAwait(false);
+                buffer = readResult.Buffer;
+                bufferReader = new SequenceReader<byte>(readResult.Buffer);
+                read = T.TryRead(ref bufferReader, out message, out bytesToRead);
             }
-            
-            buffer = bufferReader.UnreadSequence;
-            this.reader.AdvanceTo(bufferReader.UnreadSequence.Start);
-            return component.Value;
-        }
 
-        async ValueTask HandleMessage<T>() where T : struct, IMessage, IProtocolComponent<T>
-        {
-            using var message = await ReadComponent<T>().ConfigureAwait(false);
             await handler.HandleMessage(in message).ConfigureAwait(false);
         }
     }

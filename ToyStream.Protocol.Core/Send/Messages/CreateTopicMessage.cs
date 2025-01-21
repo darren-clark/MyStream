@@ -1,5 +1,6 @@
 ﻿namespace ToyStream.Protocol.Send;
 
+using Messages.Send;
 using Shared;
 
 public readonly ref struct CreateTopicMessage: IMessage
@@ -17,9 +18,9 @@ public readonly ref struct CreateTopicMessage: IMessage
 
     public int Size => this.topicName.Size + this.partitionCount.Size;
     
-    public void Write(ref BigEndianSpanWriter writer)
+    public void Write(ref ProtocolPrimitiveWriter primitiveWriter)
     {
-        this.topicName.Write(ref writer);
-        this.partitionCount.Write(ref writer);
+        this.topicName.Write(ref primitiveWriter);
+        this.partitionCount.Write(ref primitiveWriter);
     }
 }

@@ -2,5 +2,5 @@
 
 public interface ITopicManager
 {
-    ValueTask AddTopicAsync(string topicName, short partitionCount);
+    ValueTask CreateTopicAsync(string topicName, short partitionCount);
 }

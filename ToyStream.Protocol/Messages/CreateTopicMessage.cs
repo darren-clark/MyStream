@@ -1,6 +1,6 @@
 ﻿namespace ToyStream.Protocol.Messages;
 
-using System.Buffers;
+using System.Text;
 using Shared;
 
 public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
@@ -8,23 +8,24 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
     public required RefUtf8String TopicName { get; init; }
     public required short PartitionCount { get; init; }
 
-    public int Size => sizeof(short) + sizeof(short) + TopicName.Length;
     public MessageType Type => MessageType.CreateTopic;
 
-    public static bool TryRead(scoped ref SequenceReader<byte> reader, out CreateTopicMessage message, out int bytesToRead)
+    static bool IMessage<CreateTopicMessage>.TryRead<TReader>(ref TReader reader, out CreateTopicMessage message, out int bytesToRead)
     {
-        if (!reader.TryReadUtf8String(out var topicName, out bytesToRead))
+        var tryReader = reader;
+        if (!tryReader.TryReadUtf8String(out var topicName, out bytesToRead))
         {
             message = default;
             return false;   
         }
         
-        if (!reader.TryReadInt16(out var partitionCount, out bytesToRead))
+        if (!tryReader.TryReadInt16(out var partitionCount, out bytesToRead))
         {
             message = default;
             return false;
         }
 
+        reader = tryReader;
         message = new CreateTopicMessage
         {
             TopicName = topicName,
@@ -32,11 +33,13 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
         };
         return true;
     }
-
-    public void Write(ref BigEndianSpanWriter writer)
+    
+    internal void Write<TWriter>(TWriter writer) where TWriter: IPrimitiveWriter, allows ref struct
     {
         writer.Write(TopicName);
         writer.Write(PartitionCount);
-        throw new NotImplementedException();
     }
+
+    void IMessage<CreateTopicMessage>.Write<TWriter>(TWriter writer) => Write(writer);
+
 }

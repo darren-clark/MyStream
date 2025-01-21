@@ -1,4 +1,4 @@
-﻿namespace ToyStream.Protocol.Send;
+﻿namespace ToyStream.Protocol;
 
 public interface IToyProtocolWriter
 {

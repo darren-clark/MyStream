@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.Text;
+using Messages.Send;
 using Shared;
 
 [DebuggerDisplay($"{Encoding.UTF8.GetString(value)}")]
@@ -27,9 +28,9 @@ public readonly ref struct Utf8StringValue: IProtocolComponent
 
     public int Size => this.value.Length + sizeof(short);
 
-    public void Write(ref BigEndianSpanWriter writer)
+    public void Write(ref ProtocolPrimitiveWriter primitiveWriter)
     {
-        writer.Write(this.length.Value);
-        writer.Advance(Encoding.UTF8.GetBytes(this.value, writer.Remaining));
+        primitiveWriter.Write(this.length.Value);
+        primitiveWriter.Advance(Encoding.UTF8.GetBytes(this.value, primitiveWriter.Remaining));
     }
 }

@@ -7,6 +7,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="ToyStream.Protocol.Test" />
+    </ItemGroup>
+    
+    <ItemGroup>
       <ProjectReference Include="..\ToyStream.Shared\ToyStream.Shared.csproj" />
     </ItemGroup>
 

@@ -1,23 +1,14 @@
-﻿namespace ToyStream.Protocol.Messages;
+﻿namespace ToyStream.Protocol.Messages.Send;
 
 using System.Buffers;
 using Shared;
 
-public readonly ref struct AcknowledgeMessage: IMessage<AcknowledgeMessage>
+public readonly ref struct AcknowledgeMessage: IMessage
 {
-    public AcknowledgeMessage()
-    {
-    }
-
     public int Size => 0;
     public MessageType Type => MessageType.Acknowledge;
 
-    public static bool TryRead(scoped ref SequenceReader<byte> reader, out AcknowledgeMessage message, out int bytesToRead)
+    public void Write<T>(ref ProtocolPrimitiveWriter<T> primitiveWriter) where T : IBufferWriter<byte>
     {
-        message = new AcknowledgeMessage();
-        bytesToRead = 0;
-        return true;
     }
-
-    public void Write(ref BigEndianSpanWriter writer) { }
 }
