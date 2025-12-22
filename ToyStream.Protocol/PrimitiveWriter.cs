@@ -5,23 +5,23 @@ using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using ToyStream.Shared;
 
-internal ref struct PrimitiveWriter<T>: IPrimitiveWriter where T: IBufferWriter<byte>
+internal static class PrimitiveWriter
 {
-    private readonly T writer;
-    
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public PrimitiveWriter(T writer)
-    {
-        this.writer = writer;
-    }
+    public static PrimitiveWriter<T> Create<T>(T writer) where T: IBufferWriter<byte> => new(writer);
+}
 
+[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+internal readonly struct PrimitiveWriter<T>(T writer) : IPrimitiveWriter
+    where T : IBufferWriter<byte>
+{
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator PrimitiveWriter<T>(T writer) => new(writer);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(byte value)
     {
-        this.writer.Write(new ReadOnlySpan<byte>(ref value));
+        writer.Write(new ReadOnlySpan<byte>(ref value));
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -29,7 +29,7 @@ internal ref struct PrimitiveWriter<T>: IPrimitiveWriter where T: IBufferWriter<
     {
         Span<byte> span = stackalloc byte[sizeof(short)];
         BinaryPrimitives.WriteInt16BigEndian(span, value);
-        this.writer.Write(span);
+        writer.Write(span);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -37,7 +37,7 @@ internal ref struct PrimitiveWriter<T>: IPrimitiveWriter where T: IBufferWriter<
     {
         Span<byte> buffer = stackalloc byte[sizeof(int)];
         BinaryPrimitives.WriteInt32BigEndian(buffer, value);
-        this.writer.Write(buffer);
+        writer.Write(buffer);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -45,13 +45,13 @@ internal ref struct PrimitiveWriter<T>: IPrimitiveWriter where T: IBufferWriter<
     {
         Span<byte> buffer = stackalloc byte[sizeof(long)];
         BinaryPrimitives.WriteInt64BigEndian(buffer, value);
-        this.writer.Write(buffer);
+        writer.Write(buffer);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Write(ReadOnlySpan<byte> value)
     {
-        this.writer.Write(value);
+        writer.Write(value);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,10 +59,10 @@ internal ref struct PrimitiveWriter<T>: IPrimitiveWriter where T: IBufferWriter<
     {
         while (!value.IsSingleSegment)
         {
-            this.writer.Write(value.FirstSpan);
+            writer.Write(value.FirstSpan);
             value = value.Slice(value.FirstSpan.Length);
         }
-        this.writer.Write(value.FirstSpan);
+        writer.Write(value.FirstSpan);
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

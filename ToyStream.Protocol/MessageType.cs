@@ -2,6 +2,6 @@
 
 public enum MessageType: byte
 {
-    Acknowledge = 0,
-    CreateTopic = 1
+    CreateTopic = 1,
+    Publish = 2,
 }

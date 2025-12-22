@@ -6,7 +6,7 @@ using Protocol;
 
 public class ClientHandlerFactory(IServerCore server)
 {
-    public AdminClientConnection CreateClientHandler(Socket socket, CancellationToken cancellationToken)
+    public AdminClientVirtualReaderWriterConnection CreateClientHandler(Socket socket, CancellationToken cancellationToken)
    
-        => new AdminClientConnection(server, new NetworkStream(socket, ownsSocket: true), cancellationToken);
+        => new AdminClientVirtualReaderWriterConnection(server, new NetworkStream(socket, ownsSocket: true), cancellationToken);
 }

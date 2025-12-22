@@ -14,6 +14,13 @@ public interface ICopyableTo<in TIn, out TOut> where TIn : ICopyableTo<TIn, TOut
     public static abstract explicit operator TOut(TIn value);
 }
 
+// Indicates that this the same equality semantics as T.
+public interface IReferenceTo<in T>
+{
+    public int GetHashCode();
+    public bool Equals(T other);
+}
+
 /// <summary>
 /// Dictionary that allows lookups from equivalent types.
 ///
@@ -34,7 +41,7 @@ public interface ICopyableTo<in TIn, out TOut> where TIn : ICopyableTo<TIn, TOut
 [Serializable]
 public class VariantDictionary<TKey, TValue> :
     IDictionary<TKey, TValue>,
-    IReadOnlyDictionary<TKey, TValue> where TKey : IEquatable<TKey>
+    IReadOnlyDictionary<TKey, TValue> where TKey : IReferenceTo<TKey>
 {
     private int[]? _buckets;
     private Entry[]? _entries;
@@ -238,7 +245,7 @@ public class VariantDictionary<TKey, TValue> :
         }
     }
 
-    public bool ContainsKey<T>(T key) where T : IEquatable<TKey> => !Unsafe.IsNullRef(ref FindValue(key));
+    public bool ContainsKey<T>(T key) where T : IReferenceTo<TKey>, allows ref struct => !Unsafe.IsNullRef(ref FindValue(key));
 
     public bool ContainsKey(TKey key) =>
         !Unsafe.IsNullRef(ref FindValue(key));
@@ -312,10 +319,8 @@ public class VariantDictionary<TKey, TValue> :
     IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() =>
         Count == 0 ? GenericEmptyEnumerator<KeyValuePair<TKey, TValue>>.Instance : GetEnumerator();
 
-    internal ref TValue FindValue<T>(T key) where T : IEquatable<TKey>
+    internal ref TValue FindValue<T>(T key) where T : IReferenceTo<TKey>, allows ref struct
     {
-        ArgumentNullException.ThrowIfNull(key);
-
         ref Entry entry = ref Unsafe.NullRef<Entry>();
         if (_buckets != null)
         {
@@ -604,14 +609,11 @@ public class VariantDictionary<TKey, TValue> :
 
     bool IDictionary<TKey, TValue>.Remove(TKey key) => Remove(key);
     
-    public bool Remove<T>(T key) where T: IEquatable<TKey>
+    public bool Remove<T>(T key) where T: IReferenceTo<TKey>, allows ref struct
     {
         // The overload Remove(TKey key, out TValue value) is a copy of this method with one additional
         // statement to copy the value for entry being removed into the output parameter.
         // Code has been intentionally duplicated for performance reasons.
-
-        ArgumentNullException.ThrowIfNull(key);
-
         if (_buckets != null)
         {
             Debug.Assert(_entries != null, "entries should be non-null");
@@ -751,7 +753,7 @@ public class VariantDictionary<TKey, TValue> :
     bool IReadOnlyDictionary<TKey, TValue>.TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) =>
         TryGetValue(key, out value);
 
-    public bool TryGetValue<T>(T key, [MaybeNullWhen(false)] out TValue value) where T: IEquatable<TKey>
+    public bool TryGetValue<T>(T key, [MaybeNullWhen(false)] out TValue value) where T: IReferenceTo<TKey>
     {
         ref TValue valRef = ref FindValue(key);
         if (!Unsafe.IsNullRef(ref valRef))
@@ -1402,7 +1404,7 @@ file static class ThrowHelper
     public static void ThrowArgumentException_Argument_IncompatibleArrayType() =>
         throw new ArgumentException("Incompatible array type");
 
-    public static void ThrowAddingDuplicateWithKeyArgumentException<TKey>(TKey key) where TKey : IEquatable<TKey>
+    public static void ThrowAddingDuplicateWithKeyArgumentException<TKey>(TKey key) where TKey : IReferenceTo<TKey>
     {
         throw new NotImplementedException();
     }

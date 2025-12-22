@@ -1,4 +1,4 @@
-﻿namespace ToyStream.Protocol;
+﻿namespace ToyStream.Protocol.ReaderWriterVirtual;
 
 public interface IToyProtocolReader
 {

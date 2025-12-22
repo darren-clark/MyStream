@@ -3,7 +3,7 @@
 using System.Buffers;
 using System.Text;
 
-public class Utf8String: IEquatable<Utf8String>
+public class Utf8String: IReferenceTo<Utf8String>
 {
     private readonly ReadOnlyMemory<byte> value;
 

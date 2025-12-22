@@ -1,11 +1,14 @@
 ﻿namespace ToyStream.Server.Host;
 
 using System.Collections.Concurrent;
+using Shared;
 
 public interface IServerCore
 {
     public void RegisterClient(IAdminClient client);
     public void UnregisterClient(IAdminClient client);
+    
+    public ValueTask CreateTopicAsync(RefUtf8String topicName, short partitions);
 }
 
 public class ServerCore: IServerCore, IAsyncDisposable
@@ -26,6 +29,11 @@ public class ServerCore: IServerCore, IAsyncDisposable
     public void UnregisterClient(IAdminClient client)
     {
         _ = this.clients.TryRemove(client.ClientId, out _) && ThrowClientNotFoundException(client.ClientId);
+    }
+
+    public ValueTask CreateTopicAsync(RefUtf8String topicName, short partitions)
+    {
+        return this.topicManager.CreateTopicAsync(topicName, partitions);
     }
 
     private static bool ThrowDuplicateClientException(string clientId)

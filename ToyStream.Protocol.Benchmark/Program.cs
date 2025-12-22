@@ -12,6 +12,3 @@ var summary = BenchmarkRunner.Run<Benchmarks>();
 //     MessageRuns = 10000
 // };
 // await bench.SimpleMessageFlow();
-// bench.SetupFakeServer();
-// await bench.SimpleMessageFlow();
-// await bench.Cleanup();

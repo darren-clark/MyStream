@@ -3,7 +3,11 @@
 using System.Buffers;
 using System.Text;
 
-public readonly ref struct RefUtf8String: IEquatable<Utf8String>, ICopyableTo<RefUtf8String, Utf8String>
+/// <summary>
+/// Wraps a buffer containing UTF-8 encoded text.
+///
+/// </summary>
+public readonly ref struct RefUtf8String: IReferenceTo<Utf8String>, ICopyableTo<RefUtf8String, Utf8String>
 {
     private readonly ReadOnlySequence<byte> value;
 
@@ -43,10 +47,11 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, ICopyableTo<Re
         while(reader.Remaining > 0)
         {
             var span = reader.CurrentSpan;
-            if (!span.SequenceEqual(otherSpan[0..span.Length]))
+            if (!span.SequenceEqual(otherSpan[..span.Length]))
             {
                 return false;
             }
+            otherSpan = otherSpan[span.Length..];
             reader.Advance(span.Length);
         }
 
@@ -71,12 +76,17 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, ICopyableTo<Re
             hashCode.AddBytes(buffer);
             return hashCode.ToHashCode();
         }
-        
+
+        // Copy locally to avoid mutating the original.
+        var toHash = this.value;
+
         // Finally fall back to iterating over the sequence.
-        foreach (var b in this.value)
+        while (!toHash.IsSingleSegment)
         {
-            hashCode.Add(b);
+            hashCode.AddBytes(toHash.FirstSpan);
+            toHash = toHash.Slice(toHash.FirstSpan.Length);
         }
+        hashCode.AddBytes(toHash.FirstSpan);
         
         return hashCode.ToHashCode();    
     }

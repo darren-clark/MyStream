@@ -1,6 +1,8 @@
 ﻿namespace ToyStream.Server;
 
+using Shared;
+
 public interface ITopicManager
 {
-    ValueTask CreateTopicAsync(string topicName, short partitionCount);
+    ValueTask CreateTopicAsync(RefUtf8String topicName, short partitionCount);
 }
