@@ -10,6 +10,20 @@ public class ToyProtocolPipeReader : IToyProtocolReader
 {
     private readonly PipeReader pipe;
 
+    // Passing the handler call as a type rather than a delegate keeps the read loop allocation free:
+    // a closure over 'handler' cannot be cached, but a struct type argument costs nothing.
+    private interface IMessageDispatcher<TMessage>
+        where TMessage : struct, IMessage<TMessage>, allows ref struct
+    {
+        static abstract ValueTask Dispatch(IToyProtocolHandler handler, ref readonly TMessage message);
+    }
+
+    private readonly struct CreateTopicDispatcher : IMessageDispatcher<CreateTopicMessage>
+    {
+        public static ValueTask Dispatch(IToyProtocolHandler handler, ref readonly CreateTopicMessage message)
+            => handler.HandleCreateTopicMessage(in message);
+    }
+
     public ToyProtocolPipeReader(PipeReader pipe)
     {
         this.pipe = pipe;
@@ -44,8 +58,7 @@ public class ToyProtocolPipeReader : IToyProtocolReader
                     // https://github.com/dotnet/runtime/issues/105435
                     // So for now we'll have a handler method for each, even though servers and clients are
                     // completely different.
-                    MessageType.CreateTopic => HandleMessage<CreateTopicMessage>(m =>
-                        handler.HandleCreateTopicMessage(in m)),
+                    MessageType.CreateTopic => HandleMessage<CreateTopicMessage, CreateTopicDispatcher>(),
                     MessageType.Acknowledge => HandleResponseMessage<AcknowledgeMessage, AcknowledgeResponse>(),
                     _ => throw new NotImplementedException()
                 }).ConfigureAwait(false);
@@ -93,13 +106,14 @@ public class ToyProtocolPipeReader : IToyProtocolReader
             await handler.HandleResponseMessage<TResponseMessage, TResponse>(in message).ConfigureAwait(false);
         }
 
-        async ValueTask HandleMessage<T>(Func<T, ValueTask> messageHandler)
-            where T : struct, IMessage<T>, allows ref struct
+        async ValueTask HandleMessage<TMessage, TDispatcher>()
+            where TMessage : struct, IMessage<TMessage>, allows ref struct
+            where TDispatcher : struct, IMessageDispatcher<TMessage>
         {
             // Have to duplicate the reading code here, because we
             // can't return a ValueTask<T> from shared code.
             var reader = new PrimitiveReader(buffer);
-            var read = T.TryRead(ref reader, out var message, out var bytesToRead);
+            var read = TMessage.TryRead(ref reader, out var message, out var bytesToRead);
 
             while (!read)
             {
@@ -107,12 +121,12 @@ public class ToyProtocolPipeReader : IToyProtocolReader
                 var readResult = await this.pipe.ReadAtLeastAsync(bytesToRead, cancellationToken).ConfigureAwait(false);
                 buffer = readResult.Buffer;
                 reader = new PrimitiveReader(buffer);
-                read = T.TryRead(ref reader, out message, out bytesToRead);
+                read = TMessage.TryRead(ref reader, out message, out bytesToRead);
             }
 
             buffer = reader.Remaining;
             this.pipe.AdvanceTo(reader.Remaining.Start);
-            await messageHandler(message).ConfigureAwait(false);
+            await TDispatcher.Dispatch(handler, in message).ConfigureAwait(false);
         }
     }
 }
