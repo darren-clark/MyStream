@@ -94,7 +94,7 @@ public class Benchmarks
 
         public Task CreateTopic(RefUtf8String topicName, short partitionCount)
         {
-            return SendMessage<CreateTopicMessage, AcknowledgeMessage>(new CreateTopicMessage
+            return SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(new CreateTopicMessage
             {
                 TopicName = topicName,
                 PartitionCount = partitionCount

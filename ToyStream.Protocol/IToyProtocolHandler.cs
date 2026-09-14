@@ -5,5 +5,5 @@ using Messages;
 public interface IToyProtocolHandler
 {
     public ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message);
-    public ValueTask HandleResponseMessage<T>(ref readonly T message) where T : struct, IResponseMessage<T>;
+    public ValueTask HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message) where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct;
 }

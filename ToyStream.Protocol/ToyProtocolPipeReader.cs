@@ -46,7 +46,7 @@ public class ToyProtocolPipeReader : IToyProtocolReader
                     // completely different.
                     MessageType.CreateTopic => HandleMessage<CreateTopicMessage>(m =>
                         handler.HandleCreateTopicMessage(in m)),
-                    MessageType.Acknowledge => HandleResponseMessage<AcknowledgeMessage>(),
+                    MessageType.Acknowledge => HandleResponseMessage<AcknowledgeMessage, AcknowledgeResponse>(),
                     _ => throw new NotImplementedException()
                 }).ConfigureAwait(false);
             }
@@ -72,10 +72,10 @@ public class ToyProtocolPipeReader : IToyProtocolReader
         }
 
 
-        async ValueTask HandleResponseMessage<T>() where T : struct, IResponseMessage<T>
+        async ValueTask HandleResponseMessage<TResponseMessage, TResponse>() where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
         {
             var reader = new PrimitiveReader(buffer);
-            var read = T.TryRead(ref reader, out var message, out var bytesToRead);
+            var read = TResponseMessage.TryRead(ref reader, out var message, out var bytesToRead);
 
             while (!read)
             {
@@ -83,12 +83,12 @@ public class ToyProtocolPipeReader : IToyProtocolReader
                 var readResult = await this.pipe.ReadAtLeastAsync(bytesToRead, cancellationToken).ConfigureAwait(false);
                 buffer = readResult.Buffer;
                 reader = new PrimitiveReader(buffer);
-                read = T.TryRead(ref reader, out message, out bytesToRead);
+                read = TResponseMessage.TryRead(ref reader, out message, out bytesToRead);
             }
 
             buffer = reader.Remaining;
             this.pipe.AdvanceTo(reader.Remaining.Start);
-            await handler.HandleResponseMessage(in message).ConfigureAwait(false);
+            await handler.HandleResponseMessage<TResponseMessage, TResponse>(in message).ConfigureAwait(false);
         }
 
         async ValueTask HandleMessage<T>(Func<T, ValueTask> messageHandler)

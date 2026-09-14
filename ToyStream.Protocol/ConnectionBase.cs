@@ -38,16 +38,17 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
         this.tag = tag;
     }
 
-    protected Task<TResponse> SendMessage<TMessage, TResponse>(TMessage message, CancellationToken sendCancellationToken)
-        where TMessage : struct, IMessage<TMessage>, allows ref struct
-        where TResponse : struct, IResponseMessage<TResponse>
+    protected Task<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(TRequestMessage requestMessage, CancellationToken sendCancellationToken)
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage, TResponse>, allows ref struct
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
+        where TResponse : class
     {
-        Log($"Sending {typeof(TMessage).Name} message, current completion source is {this.responseCompletionSource}");
+        Log($"Sending {typeof(TRequestMessage).Name} message, current completion source is {this.responseCompletionSource}");
         var completionSource = this.cachedCompletionSources.Get<TResponse>();
         this.responseCompletionSource = completionSource;
         
         return SendAndWait(
-            this.writer.Write(message, sendCancellationToken), 
+            this.writer.Write(requestMessage, sendCancellationToken), 
             completionSource, 
             sendCancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>) c!).Cancel(), completionSource));
 
@@ -64,10 +65,10 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
         }
     }
 
-    protected ValueTask SendResponse<T>(T response)
-        where T : struct, IResponseMessage<T>
+    protected ValueTask SendResponse<TResponseMessage>(TResponseMessage response)
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
     {
-        Log($"Sending response {typeof(T)}");
+        Log($"Sending response {typeof(TResponseMessage)}");
             
         return this.writer.Write(response, cancellationToken);
     }
@@ -79,10 +80,10 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     protected virtual ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message) =>
         throw new NotImplementedException();
     
-    ValueTask IToyProtocolHandler.HandleResponseMessage<T>(ref readonly T message)
+    ValueTask IToyProtocolHandler.HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message)
     {
         Debug.Assert(this.responseCompletionSource != null);
-        this.responseCompletionSource.TrySetResult(message);
+        this.responseCompletionSource.TrySetResult(message.Response);
         return default;
     }
 
@@ -190,7 +191,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             this.cancelled = false;
         }
 
-        protected T GetResult<T>(T? result) where T: struct
+        protected T GetResult<T>(T? result) where T: class
         {
             // lock (this.@lock)
             // {
@@ -205,7 +206,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     /// By having a bespoke awaiter for each message type.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    private sealed class ResponseCompletionSource<T> : ResponseCompletionSource where T : struct, IResponseMessage<T>
+    private sealed class ResponseCompletionSource<T> : ResponseCompletionSource where T : class
     {
         private T? result;
 
@@ -244,7 +245,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
         private readonly Dictionary<Type, ResponseCompletionSource> sources = new();
     
         
-        public ResponseCompletionSource<T> Get<T>() where T : struct, IResponseMessage<T>
+        public ResponseCompletionSource<T> Get<T>() where T : class
         {
             if (this.sources.TryGetValue(typeof(T), out var source))
             {

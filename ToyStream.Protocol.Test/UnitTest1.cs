@@ -110,7 +110,8 @@ public class Tests
             return default;
         }
 
-        public ValueTask HandleResponseMessage<T>(ref readonly T message) where T : struct, IResponseMessage<T>
+        public ValueTask HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message)
+            where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
         {
             return default;
         }
@@ -128,7 +129,7 @@ public class Tests
                 TopicName = new Utf8String(topicName),
                 PartitionCount = partitionCount
             };
-            await SendMessage<CreateTopicMessage, AcknowledgeMessage>(message, default);
+            await SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(message, default);
         }
 
         protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)

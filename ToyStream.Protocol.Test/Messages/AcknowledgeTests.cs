@@ -1,7 +1,7 @@
 ﻿namespace ToyStream.Protocol.Test.Messages;
 
 using System.Buffers;
-using Responses;
+using Protocol.Messages;
 
 using static ProtocolTestHelpers;
 
@@ -24,7 +24,7 @@ public class AcknowledgeTests
     {
 
         GetWriteBuffer(out var buffer, out var writer);
-        ((IMessage<AcknowledgeMessage>)new AcknowledgeMessage()).Write(writer);
+        WriteMessage(new AcknowledgeMessage(), writer);
         Assert.That(buffer.WrittenCount, Is.EqualTo(0));
     }
 
