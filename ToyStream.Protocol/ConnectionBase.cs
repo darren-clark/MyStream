@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks.Sources;
 using Messages;
 
 public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
@@ -34,13 +35,13 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     protected ConnectionBase(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken, string? tag = null)
     {
         this.writer = writer;
-        this.cachedCompletionSources = new(this);
+        this.cachedCompletionSources = new();
         this.cancellationToken = cancellationToken;
         this.readerTask = reader.Read(this, cancellationToken);
         this.tag = tag;
     }
 
-    protected Task<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(TRequestMessage requestMessage, CancellationToken sendCancellationToken)
+    protected ValueTask<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(TRequestMessage requestMessage, CancellationToken sendCancellationToken)
         where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : class, IResponse<TResponseMessage, TResponse>
@@ -54,15 +55,11 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             completionSource, 
             sendCancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>) c!).Cancel(), completionSource));
 
-        async Task<TResponse> SendAndWait(ValueTask writerTask, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
+        static async ValueTask<TResponse> SendAndWait(ValueTask writerTask, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
         {
-            Log($"Sending message");
             await writerTask.ConfigureAwait(false);
-            Log("Waiting response");
-            var result = await responseCompletion;
-            Log("Disposing cancellation registration");
+            var result = await responseCompletion.ValueTask.ConfigureAwait(false);
             await cancellation.DisposeAsync();
-            Log("Returning result");
             return result;
         }
     }
@@ -97,110 +94,13 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
 
     protected virtual ValueTask DisposeAsync() => default;
     
-    private abstract class ResponseCompletionSource: INotifyCompletion
+    private abstract class ResponseCompletionSource
     {
-        private enum  State: byte
-        {
-            Pending,
-            RegisteringCallback,
-            CallbackRegistered,
-            Completed
-        }
-        
-        private Action? onCompletion;
-        private bool cancelled;
-        // manage races between OnCompleted and Complete
-        // only one should invoke the callback.
-        private byte state;
-        
-       
-        protected ConnectionBase connection;
-
-        protected ResponseCompletionSource(ConnectionBase connection)
-        {
-            this.connection = connection;
-        }
-        
-        public void OnCompleted(Action completion)
-        {
-            // IIF we're pending, set to registering.
-            var localState = Interlocked.CompareExchange(ref this.state, (byte) State.RegisteringCallback, (byte) State.Pending);
-            this.connection.Log($"OnCompleted called in state {(State) localState}");
-            // We won the race, the task is not yet completed
-            if (localState == (byte)State.Pending)
-            { 
-                // If we get here then Complete() will wait until we set the callback.
-                this.onCompletion = completion;
-                Volatile.Write(ref this.state, (byte)State.CallbackRegistered);
-            } 
-            else if (state == (byte) State.Completed)
-            {
-                completion();
-            }
-            else
-            {
-                // We should not be able to get here.
-                throw new InvalidOperationException();
-            }
-        }
-
         public abstract bool TrySetResult<T>(T value);
-        
-        protected void TryComplete()
-        {
-            var localState = Interlocked.CompareExchange(ref this.state, (byte)State.Completed, (byte)State.Pending);
-            this.connection.Log($"TryComplete called in state {(State) localState}");
-            switch (localState)
-            {
-                //We won, wait for OnCompleted to be called.
-                case (byte)State.Pending:
-                    // If we get here, we're expecting a call to OnCompleted, OR a check of IsCompleted and call to GetResult.
-                    return;
-                // We're in the middle of setting the callback, wait until that has settled.
-                case (byte)State.RegisteringCallback:
-                    SpinWait.SpinUntil(() => Volatile.Read(ref this.state) == (byte)State.CallbackRegistered);
-                    goto case (byte)State.CallbackRegistered;
-                case (byte)State.CallbackRegistered:
-                    // Set completed before we invoke callback
-                    Volatile.Write(ref this.state, (byte) State.Completed);
-                    this.onCompletion!();
-                    break;
-                
-            }
-        }
 
-        public void Cancel()
-        {
-            var localState = Interlocked.CompareExchange(ref this.state, (byte)State.Completed, (byte)State.Pending);
-            this.connection.Log($"Cancel called in state {(State) localState}");
+        public abstract void Cancel();
 
-            if (localState == (byte)State.RegisteringCallback)
-            {
-                SpinWait.SpinUntil(() => Volatile.Read(ref this.state) == (byte)State.CallbackRegistered);
-            }
-            Volatile.Write(ref this.state, (byte) State.Completed);
-            this.cancelled = true;
-        }
-
-
-        public bool IsCompleted => this.state == (byte)State.Completed;
-        
-        public virtual void Reset()
-        {
-            connection.Log($"Reset called, completion is {this.onCompletion}");
-            this.onCompletion = null;   
-            this.state = (byte)State.Pending;
-            this.cancelled = false;
-        }
-
-        protected T GetResult<T>(T? result) where T: class
-        {
-            // lock (this.@lock)
-            // {
-                connection.Log($"GetResult called, completion is {this.onCompletion}, result is {result}");
-                return this.cancelled ? throw new TaskCanceledException() : result ?? throw new InvalidOperationException();
-            // }
-        }
+        public abstract void Reset();
     }
 
     /// <summary>
@@ -208,45 +108,50 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     /// By having a bespoke awaiter for each message type.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    private sealed class ResponseCompletionSource<T> : ResponseCompletionSource where T : class
+    private sealed class ResponseCompletionSource<T> : ResponseCompletionSource, IValueTaskSource<T> where T : class
     {
-        private T? result;
+        // Mutable struct: must stay a field and never be copied.
+        private ManualResetValueTaskSourceCore<T> core = new() { RunContinuationsAsynchronously = false };
 
-        public ResponseCompletionSource(ConnectionBase connection) : base(connection)
-        {
-        }
+        // Guards the race between a response arriving and the send being cancelled.
+        private int completed;
+
+        public ValueTask<T> ValueTask => new(this, this.core.Version);
 
         public override bool TrySetResult<T1>(T1 value)
         {
-            this.connection.Log($"TrySetResult called, value is {value}");
-            Debug.Assert(this.result == null);
-            if (value is not T t) return false;
+            if (value is not T typed) return false;
+            if (Interlocked.Exchange(ref this.completed, 1) != 0) return false;
 
-            this.result = t;
-            this.TryComplete();
+            this.core.SetResult(typed);
             return true;
+        }
+
+        public override void Cancel()
+        {
+            if (Interlocked.Exchange(ref this.completed, 1) != 0) return;
+
+            this.core.SetException(new TaskCanceledException());
         }
 
         public override void Reset()
         {
-            base.Reset();
-            this.result = null;
+            this.core.Reset();
+            this.completed = 0;
         }
 
-        public ResponseCompletionSource<T> GetAwaiter()
-        {
-            this.connection.Log("GetAwaiter called");
-            return this;
-        }
+        T IValueTaskSource<T>.GetResult(short token) => this.core.GetResult(token);
 
-        public T GetResult() => this.GetResult(this.result);
+        ValueTaskSourceStatus IValueTaskSource<T>.GetStatus(short token) => this.core.GetStatus(token);
+
+        void IValueTaskSource<T>.OnCompleted(Action<object?> continuation, object? state, short token,
+            ValueTaskSourceOnCompletedFlags flags) => this.core.OnCompleted(continuation, state, token, flags);
     }
 
-    private class ResponseCompletionSourceCache(ConnectionBase connection)
+    private class ResponseCompletionSourceCache
     {
         private readonly Dictionary<Type, ResponseCompletionSource> sources = new();
-    
-        
+
         public ResponseCompletionSource<T> Get<T>() where T : class
         {
             if (this.sources.TryGetValue(typeof(T), out var source))
@@ -255,7 +160,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
                 return (ResponseCompletionSource<T>)source;
             }
             
-            source = new ResponseCompletionSource<T>(connection);
+            source = new ResponseCompletionSource<T>();
             this.sources.Add(typeof(T), source);
 
             return (ResponseCompletionSource<T>) source;

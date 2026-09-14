@@ -84,7 +84,7 @@ public class Benchmarks
         {
         }
 
-        public Task<AcknowledgeResponse> CreateTopic(RefUtf8String topicName, short partitionCount)
+        public ValueTask<AcknowledgeResponse> CreateTopic(RefUtf8String topicName, short partitionCount)
             => SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
                 new CreateTopicMessage
                 {
