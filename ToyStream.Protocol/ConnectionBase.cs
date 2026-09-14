@@ -55,6 +55,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
             completionSource, 
             sendCancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>) c!).Cancel(), completionSource));
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         static async ValueTask<TResponse> SendAndWait(ValueTask writerTask, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
         {
             await writerTask.ConfigureAwait(false);

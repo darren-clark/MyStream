@@ -2,6 +2,7 @@
 
 using System.Buffers;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Messages;
 using Responses;
@@ -70,6 +71,7 @@ public class ToyProtocolPipeReader : IToyProtocolReader
 #pragma warning restore CA2012
         return;
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         async ValueTask<MessageType> ReadMessageType()
         {
             if (buffer.Length < sizeof(MessageType))
@@ -85,6 +87,7 @@ public class ToyProtocolPipeReader : IToyProtocolReader
         }
 
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
         async ValueTask HandleResponseMessage<TResponseMessage, TResponse>()
             where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
             where TResponse : class, IResponse<TResponseMessage, TResponse>
@@ -106,6 +109,7 @@ public class ToyProtocolPipeReader : IToyProtocolReader
             await handler.HandleResponseMessage<TResponseMessage, TResponse>(in message).ConfigureAwait(false);
         }
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
         async ValueTask HandleMessage<TMessage, TDispatcher>()
             where TMessage : struct, IMessage<TMessage>, allows ref struct
             where TDispatcher : struct, IMessageDispatcher<TMessage>

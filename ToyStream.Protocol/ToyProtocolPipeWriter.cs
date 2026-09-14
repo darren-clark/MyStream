@@ -1,6 +1,7 @@
 ﻿namespace ToyStream.Protocol;
 
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 
 public sealed class ToyProtocolPipeWriter(PipeWriter pipe): IToyProtocolWriter
 {
@@ -12,6 +13,7 @@ public sealed class ToyProtocolPipeWriter(PipeWriter pipe): IToyProtocolWriter
 
         return Flush();
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
         async ValueTask Flush() => await pipe.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 }
