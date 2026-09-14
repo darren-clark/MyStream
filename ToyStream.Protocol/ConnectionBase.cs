@@ -74,10 +74,9 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     }
 
 
-    ValueTask IToyProtocolHandler.HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
-        => this.HandleCreateTopicMessage(in message);
-
-    protected virtual ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message) =>
+    // Implemented implicitly so the interface map points straight at the most derived override.
+    // An explicit implementation cannot be overridden, so it would cost a second dispatch.
+    public virtual ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message) =>
         throw new NotImplementedException();
     
     ValueTask IToyProtocolHandler.HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message)

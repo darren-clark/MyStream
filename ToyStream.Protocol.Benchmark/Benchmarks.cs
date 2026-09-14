@@ -137,7 +137,7 @@ public class Benchmarks
         {
         }
 
-        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+        public override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
             => SendResponse(new AcknowledgeMessage());
     }
 

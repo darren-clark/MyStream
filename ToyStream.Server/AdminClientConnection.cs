@@ -14,7 +14,7 @@ public sealed class AdminClientConnection: StreamConnectionBase
         this.server = server;
     }
 
-    protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+    public override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
     { 
         return SendResponse(new AcknowledgeMessage());
     }

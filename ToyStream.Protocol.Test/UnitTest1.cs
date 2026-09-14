@@ -91,7 +91,7 @@ public class Tests
         {
         }
 
-        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+        public override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
         {
             return SendResponse(new AcknowledgeMessage());
         }
@@ -133,7 +133,7 @@ public class Tests
             await SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(message, default);
         }
 
-        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+        public override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
         {
             throw new NotImplementedException();
         }
