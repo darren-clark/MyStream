@@ -137,11 +137,13 @@ public abstract class HeapMessageConnection : IAsyncDisposable
             }
 
             buffer = primitiveReader.Remaining;
-            this.reader.AdvanceTo(primitiveReader.Remaining.Start);
 
             // The only thing that differs from VirtualConnection: the payload is copied off the
-            // pipe buffer so the handler can be given something that outlives it.
+            // pipe buffer so the handler can be given something that outlives it. This has to
+            // happen before AdvanceTo hands those segments back to the pipe.
             var heapMessage = new HeapCreateTopicMessage(in message);
+            this.reader.AdvanceTo(buffer.Start);
+
             await this.HandleCreateTopicMessage(heapMessage).ConfigureAwait(false);
 
             await this.Write(new AcknowledgeMessage(), this.cancellationToken).ConfigureAwait(false);
@@ -163,9 +165,9 @@ public abstract class HeapMessageConnection : IAsyncDisposable
             }
 
             buffer = primitiveReader.Remaining;
-            this.reader.AdvanceTo(primitiveReader.Remaining.Start);
             this.responseCompletionSource!.TrySetResult(
                 CreateResponse<AcknowledgeMessage, AcknowledgeResponse>(in message));
+            this.reader.AdvanceTo(buffer.Start);
         }
     }
 

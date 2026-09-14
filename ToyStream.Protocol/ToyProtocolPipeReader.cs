@@ -105,8 +105,8 @@ public class ToyProtocolPipeReader : IToyProtocolReader
             }
 
             buffer = reader.Remaining;
-            this.pipe.AdvanceTo(reader.Remaining.Start);
             await handler.HandleResponseMessage<TResponseMessage, TResponse>(in message).ConfigureAwait(false);
+            this.pipe.AdvanceTo(buffer.Start);
         }
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
@@ -129,8 +129,11 @@ public class ToyProtocolPipeReader : IToyProtocolReader
             }
 
             buffer = reader.Remaining;
-            this.pipe.AdvanceTo(reader.Remaining.Start);
+
+            // Dispatch before advancing: the message is a view over the pipe buffer, and AdvanceTo
+            // hands those segments back to the pipe to be reused.
             await TDispatcher.Dispatch(handler, in message).ConfigureAwait(false);
+            this.pipe.AdvanceTo(buffer.Start);
         }
     }
 }

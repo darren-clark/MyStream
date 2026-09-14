@@ -136,10 +136,13 @@ public abstract class VirtualConnection : IAsyncDisposable
             }
 
             buffer = primitiveReader.Remaining;
-            this.reader.AdvanceTo(primitiveReader.Remaining.Start);
 
             // The only line that differs between dispatch variants.
             await this.HandleCreateTopicMessage(in message).ConfigureAwait(false);
+
+            // Advance only after dispatch: the message is a view over the pipe buffer, and
+            // AdvanceTo hands those segments back to the pipe to be reused.
+            this.reader.AdvanceTo(buffer.Start);
 
             // Identical in every variant, so the response path cannot bias the comparison.
             await this.Write(new AcknowledgeMessage(), this.cancellationToken).ConfigureAwait(false);
@@ -161,9 +164,9 @@ public abstract class VirtualConnection : IAsyncDisposable
             }
 
             buffer = primitiveReader.Remaining;
-            this.reader.AdvanceTo(primitiveReader.Remaining.Start);
             this.responseCompletionSource!.TrySetResult(
                 CreateResponse<AcknowledgeMessage, AcknowledgeResponse>(in message));
+            this.reader.AdvanceTo(buffer.Start);
         }
     }
 
