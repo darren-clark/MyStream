@@ -22,9 +22,16 @@ public class Benchmarks
     [GlobalSetup]
     public void Setup()
     {
+        // Inline schedulers keep the round trip on one thread: without them the Pipe queues each
+        // reader continuation to the thread pool, costing two handoffs per round trip.
+        var options = new PipeOptions(
+            readerScheduler: PipeScheduler.Inline,
+            writerScheduler: PipeScheduler.Inline,
+            useSynchronizationContext: false);
+
         // Client reads what the server writes, and writes what the server reads.
-        var clientPipe = new Pipe();
-        var serverPipe = new Pipe();
+        var clientPipe = new Pipe(options);
+        var serverPipe = new Pipe(options);
 
         this.cancellation = new CancellationTokenSource();
         this.topicName = new Utf8String("test");
