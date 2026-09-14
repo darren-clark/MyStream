@@ -1,11 +1,14 @@
 ﻿namespace ToyStream.Protocol;
 
-// Lets SendResponse constrain to "is a response" without naming TResponse, which it cannot infer.
-public interface IResponseMessage<TSelf> : IMessage<TSelf> where TSelf : struct, IMessage<TSelf>, allows ref struct;
+public interface IResponseMessage<TSelf> : IMessage<TSelf> where TSelf : struct, IResponseMessage<TSelf>, allows ref struct;
 
-// The wire message is a ref struct over the pipe buffer; Response is the heap projection
-// handed to the caller via Task<TResponse>.
-public interface IResponseMessage<TSelf, out TResponse> : IResponseMessage<TSelf> where TSelf : struct, IResponseMessage<TSelf, TResponse>, allows ref struct
+public interface IResponse;
+
+// The heap projection of a response message. Built by the awaiting side only, while the
+// pipe buffer the response message views is still valid.
+public interface IResponse<TResponseMessage, out TResponse> : IResponse
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+    where TResponse : class, IResponse<TResponseMessage, TResponse>
 {
-    TResponse Response { get; }
+    internal static abstract TResponse CreateResponse(ref readonly TResponseMessage response);
 }

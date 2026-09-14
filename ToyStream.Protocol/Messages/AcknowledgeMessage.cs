@@ -1,8 +1,6 @@
 ﻿namespace ToyStream.Protocol.Messages;
 
-using Responses;
-
-public ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessage, AcknowledgeResponse>
+public ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessage>
 {
     public MessageType Type => MessageType.Acknowledge;
     
@@ -13,9 +11,7 @@ public ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessage, Ackno
         return true;
     }
 
-    void IMessage<AcknowledgeMessage>.Write<TWriter>(TWriter writer)
+    void IMessage.Write<TWriter>(TWriter writer)
     {
     }
-
-    public AcknowledgeResponse Response => AcknowledgeResponse.Instance;
 }

@@ -72,7 +72,9 @@ public class ToyProtocolPipeReader : IToyProtocolReader
         }
 
 
-        async ValueTask HandleResponseMessage<TResponseMessage, TResponse>() where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
+        async ValueTask HandleResponseMessage<TResponseMessage, TResponse>()
+            where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+            where TResponse : class, IResponse<TResponseMessage, TResponse>
         {
             var reader = new PrimitiveReader(buffer);
             var read = TResponseMessage.TryRead(ref reader, out var message, out var bytesToRead);

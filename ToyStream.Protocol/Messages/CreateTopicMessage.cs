@@ -1,10 +1,8 @@
-﻿using ToyStream.Protocol.Responses;
-
-namespace ToyStream.Protocol.Messages;
+﻿namespace ToyStream.Protocol.Messages;
 
 using Shared;
 
-public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>
+public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessage, AcknowledgeMessage>
 {
     public required RefUtf8String TopicName { get; init; }
     public required short PartitionCount { get; init; }
@@ -41,5 +39,5 @@ public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessag
         writer.Write(PartitionCount);
     }
 
-    void IMessage<CreateTopicMessage>.Write<TWriter>(TWriter writer) => Write(writer);
+    void IMessage.Write<TWriter>(TWriter writer) => Write(writer);
 }

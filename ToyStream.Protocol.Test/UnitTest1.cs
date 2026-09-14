@@ -111,7 +111,8 @@ public class Tests
         }
 
         public ValueTask HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message)
-            where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
+            where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+            where TResponse : class, IResponse<TResponseMessage, TResponse>
         {
             return default;
         }

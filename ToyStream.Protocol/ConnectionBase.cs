@@ -39,9 +39,9 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     }
 
     protected Task<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(TRequestMessage requestMessage, CancellationToken sendCancellationToken)
-        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage, TResponse>, allows ref struct
-        where TResponseMessage : struct, IResponseMessage<TResponseMessage, TResponse>, allows ref struct
-        where TResponse : class
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+        where TResponse : class, IResponse<TResponseMessage, TResponse>
     {
         Log($"Sending {typeof(TRequestMessage).Name} message, current completion source is {this.responseCompletionSource}");
         var completionSource = this.cachedCompletionSources.Get<TResponse>();
@@ -83,7 +83,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     ValueTask IToyProtocolHandler.HandleResponseMessage<TResponseMessage, TResponse>(ref readonly TResponseMessage message)
     {
         Debug.Assert(this.responseCompletionSource != null);
-        this.responseCompletionSource.TrySetResult(message.Response);
+        this.responseCompletionSource.TrySetResult(TResponse.CreateResponse(in message));
         return default;
     }
 
