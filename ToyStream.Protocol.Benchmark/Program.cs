@@ -1,5 +1,6 @@
 ﻿using BenchmarkDotNet.Running;
-using ToyStream.Protocol.Benchmark;
 
-// Pass args through so --filter / --job Dry etc. work from the command line.
-BenchmarkRunner.Run<Benchmarks>(args: args);
+// Switcher so a single class can be selected with --filter; args pass through for --job Long etc.
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+
+public partial class Program;
