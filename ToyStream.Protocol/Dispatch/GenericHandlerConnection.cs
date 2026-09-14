@@ -11,7 +11,7 @@ using Responses;
 /// Dispatch variant: the handler is injected behind an interface, so reaching it is a virtual call.
 /// Body is a deliberate copy of <see cref="VirtualConnection"/>; only the dispatch line differs.
 /// </summary>
-public sealed class GenericHandlerConnection : IAsyncDisposable, IResponseSender
+public sealed class GenericHandlerConnection : IAsyncDisposable
 {
     private readonly PipeReader reader;
     private readonly PipeWriter writer;
@@ -56,10 +56,6 @@ public sealed class GenericHandlerConnection : IAsyncDisposable, IResponseSender
             return result;
         }
     }
-
-    public ValueTask Send<TResponseMessage>(TResponseMessage response)
-        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-        => this.Write(response, this.cancellationToken);
 
     private ValueTask Write<TMessage>(TMessage message, CancellationToken writeCancellationToken)
         where TMessage : struct, IMessage<TMessage>, allows ref struct
@@ -143,7 +139,10 @@ public sealed class GenericHandlerConnection : IAsyncDisposable, IResponseSender
             this.reader.AdvanceTo(primitiveReader.Remaining.Start);
 
             // The only line that differs between dispatch variants.
-            await this.handler.HandleMessage<CreateTopicMessage, AcknowledgeMessage>(in message, this).ConfigureAwait(false);
+            await this.handler.HandleMessage<CreateTopicMessage, AcknowledgeMessage>(in message).ConfigureAwait(false);
+
+            // Identical in every variant, so the response path cannot bias the comparison.
+            await this.Write(new AcknowledgeMessage(), this.cancellationToken).ConfigureAwait(false);
         }
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]

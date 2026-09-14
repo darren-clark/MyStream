@@ -140,6 +140,9 @@ public abstract class VirtualConnection : IAsyncDisposable
 
             // The only line that differs between dispatch variants.
             await this.HandleCreateTopicMessage(in message).ConfigureAwait(false);
+
+            // Identical in every variant, so the response path cannot bias the comparison.
+            await this.Write(new AcknowledgeMessage(), this.cancellationToken).ConfigureAwait(false);
         }
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]

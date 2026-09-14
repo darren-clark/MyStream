@@ -105,23 +105,21 @@ public class Benchmarks
 
     private sealed class ClassAckHandler : IMessageHandler
     {
-        public ValueTask HandleMessage<TRequestMessage, TResponseMessage>(
-            ref readonly TRequestMessage message, IResponseSender sender)
+        public ValueTask HandleMessage<TRequestMessage, TResponseMessage>(ref readonly TRequestMessage message)
             where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
             where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-            => sender.Send(default(TResponseMessage));
+            => default;
     }
 
     private readonly struct StructAckHandler : IMessageHandler
     {
-        public ValueTask HandleMessage<TRequestMessage, TResponseMessage>(
-            ref readonly TRequestMessage message, IResponseSender sender)
+        public ValueTask HandleMessage<TRequestMessage, TResponseMessage>(ref readonly TRequestMessage message)
             where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
             where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-            => sender.Send(default(TResponseMessage));
+            => default;
     }
 
-    // All we do is simply ack the request.
+    // The connection writes the acknowledgement; the handler only has to be reached.
     private sealed class VirtualServerConnection : VirtualConnection
     {
         public VirtualServerConnection(PipeReader reader, PipeWriter writer, CancellationToken cancellationToken)
@@ -129,8 +127,7 @@ public class Benchmarks
         {
         }
 
-        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
-            => Write(new AcknowledgeMessage(), default);
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message) => default;
     }
 
     private sealed class ClientConnection : VirtualConnection
@@ -140,8 +137,7 @@ public class Benchmarks
         {
         }
 
-        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
-            => throw new NotImplementedException();
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message) => default;
 
         public ValueTask<AcknowledgeResponse> CreateTopic(RefUtf8String topicName, short partitionCount)
             => SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(

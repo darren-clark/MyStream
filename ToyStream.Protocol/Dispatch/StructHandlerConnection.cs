@@ -13,7 +13,7 @@ using Responses;
 /// is what makes devirtualization possible.
 /// Body is a deliberate copy of <see cref="VirtualConnection"/>; only the dispatch line differs.
 /// </summary>
-public sealed class StructHandlerConnection<THandler> : IAsyncDisposable, IResponseSender
+public sealed class StructHandlerConnection<THandler> : IAsyncDisposable
     where THandler : struct, IMessageHandler
 {
     private readonly PipeReader reader;
@@ -62,10 +62,6 @@ public sealed class StructHandlerConnection<THandler> : IAsyncDisposable, IRespo
             return result;
         }
     }
-
-    public ValueTask Send<TResponseMessage>(TResponseMessage response)
-        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-        => this.Write(response, this.cancellationToken);
 
     private ValueTask Write<TMessage>(TMessage message, CancellationToken writeCancellationToken)
         where TMessage : struct, IMessage<TMessage>, allows ref struct
@@ -149,7 +145,10 @@ public sealed class StructHandlerConnection<THandler> : IAsyncDisposable, IRespo
             this.reader.AdvanceTo(primitiveReader.Remaining.Start);
 
             // The only line that differs between dispatch variants.
-            await this.handler.HandleMessage<CreateTopicMessage, AcknowledgeMessage>(in message, this).ConfigureAwait(false);
+            await this.handler.HandleMessage<CreateTopicMessage, AcknowledgeMessage>(in message).ConfigureAwait(false);
+
+            // Identical in every variant, so the response path cannot bias the comparison.
+            await this.Write(new AcknowledgeMessage(), this.cancellationToken).ConfigureAwait(false);
         }
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
