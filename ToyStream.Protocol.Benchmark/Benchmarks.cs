@@ -1,6 +1,5 @@
 ﻿namespace ToyStream.Protocol.Benchmark;
 
-using System.Diagnostics;
 using System.IO.Pipelines;
 using BenchmarkDotNet.Attributes;
 using Messages;
@@ -8,74 +7,66 @@ using Responses;
 using Shared;
 
 [MemoryDiagnoser]
-[DisassemblyDiagnoser]
 [ThreadingDiagnoser]
 public class Benchmarks
 {
-    [Params(10, 100, 1000)]
-    public int MessageRuns;
+    // Amortises BenchmarkDotNet's per-invocation overhead; results are reported per round trip.
+    private const int RoundTrips = 1000;
 
-    private CancellationTokenSource cancellation;
-    private TestClientConnection clientConnection;
-    private IAsyncDisposable serverConnection;
-    
-    // [GlobalSetup]
-    // public void SetupFakeServer()
-    // {
-    //     Console.WriteLine("Setting up server");
-    //     // Client connection, reader is reading from the "server"
-    //     // writer is writing to the "server"
-    //     var clientPipe =  new Pipe();
-    //     // Server connection, reader is reading from the "client"
-    //     // writer is writing to the "client"
-    //     var serverPipe = new Pipe();
-    //     cancellation = new CancellationTokenSource();
-    //     
-    //     clientConnection = new TestClientConnection(new ToyProtocolPipeReader(serverPipe.Reader), new ToyProtocolPipeWriter(clientPipe.Writer), cancellation.Token);
-    //     serverConnection = new TestServerConnection(new ToyProtocolPipeReader(clientPipe.Reader), new ToyProtocolPipeWriter(serverPipe.Writer), cancellation.Token);
-    //     // Debugger.Launch();
-    //     // while (!Debugger.IsAttached)
-    //     //     Thread.Sleep(TimeSpan.FromMilliseconds(500));
-    // }
-    //
-    // [GlobalCleanup]
-    // public async Task Cleanup()
-    // {
-    //     Console.WriteLine("Cleaning up");
-    //     await this.cancellation.CancelAsync();
-    //     await this.serverConnection.DisposeAsync();
-    //     Console.WriteLine("Done cleaning up");
-    // }
-    
-    [Benchmark]
-    public async Task SimpleMessageFlow()
+    private CancellationTokenSource cancellation = null!;
+    private TestClientConnection client = null!;
+    private IAsyncDisposable clientDisposable = null!;
+    private IAsyncDisposable serverDisposable = null!;
+    private Utf8String topicName = null!;
+
+    [GlobalSetup]
+    public void Setup()
     {
-        // Client connection, reader is reading from the "server"
-        // writer is writing to the "server"
-        var clientPipe =  new Pipe();
-        // Server connection, reader is reading from the "client"
-        // writer is writing to the "client"
+        // Client reads what the server writes, and writes what the server reads.
+        var clientPipe = new Pipe();
         var serverPipe = new Pipe();
-        cancellation = new CancellationTokenSource();
-        
-        clientConnection = new TestClientConnection(new ToyProtocolPipeReader(serverPipe.Reader), new ToyProtocolPipeWriter(clientPipe.Writer), cancellation.Token);
-        serverConnection = new TestServerConnection(new ToyProtocolPipeReader(clientPipe.Reader), new ToyProtocolPipeWriter(serverPipe.Writer), cancellation.Token);
 
-        var topicName = new Utf8String("test");
-        for(var i = 0; i< MessageRuns; i++)
-        {
-            await clientConnection.CreateTopic(topicName, 1).WaitAsync(TimeSpan.FromSeconds(5));
-        }
-        
-        await this.cancellation.CancelAsync();
-        await this.serverConnection.DisposeAsync();
+        this.cancellation = new CancellationTokenSource();
+        this.topicName = new Utf8String("test");
+
+        var clientConnection = new TestClientConnection(
+            new ToyProtocolPipeReader(serverPipe.Reader),
+            new ToyProtocolPipeWriter(clientPipe.Writer),
+            this.cancellation.Token);
+
+        var serverConnection = new TestServerConnection(
+            new ToyProtocolPipeReader(clientPipe.Reader),
+            new ToyProtocolPipeWriter(serverPipe.Writer),
+            this.cancellation.Token);
+
+        this.client = clientConnection;
+        this.clientDisposable = clientConnection;
+        this.serverDisposable = serverConnection;
     }
 
-    
-    // All we do is simply ack the request.
-    private class TestServerConnection : ConnectionBase
+    [GlobalCleanup]
+    public async Task Cleanup()
     {
-        public TestServerConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken) : base(reader, writer, cancellationToken, "server")
+        await this.cancellation.CancelAsync();
+        await this.serverDisposable.DisposeAsync();
+        await this.clientDisposable.DisposeAsync();
+        this.cancellation.Dispose();
+    }
+
+    [Benchmark(OperationsPerInvoke = RoundTrips, Baseline = true)]
+    public async Task RequestResponseRoundTrip()
+    {
+        for (var i = 0; i < RoundTrips; i++)
+        {
+            await this.client.CreateTopic(this.topicName, 1);
+        }
+    }
+
+    // All we do is simply ack the request.
+    private sealed class TestServerConnection : ConnectionBase
+    {
+        public TestServerConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken)
+            : base(reader, writer, cancellationToken, "server")
         {
         }
 
@@ -85,20 +76,21 @@ public class Benchmarks
             return SendResponse(new AcknowledgeMessage());
         }
     }
-    
-    private class TestClientConnection : ConnectionBase
+
+    private sealed class TestClientConnection : ConnectionBase
     {
-        public TestClientConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken) : base(reader, writer, cancellationToken, "client")
+        public TestClientConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken)
+            : base(reader, writer, cancellationToken, "client")
         {
         }
 
-        public Task CreateTopic(RefUtf8String topicName, short partitionCount)
-        {
-            return SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(new CreateTopicMessage
-            {
-                TopicName = topicName,
-                PartitionCount = partitionCount
-            }, default);
-        }
-    }    
+        public Task<AcknowledgeResponse> CreateTopic(RefUtf8String topicName, short partitionCount)
+            => SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
+                new CreateTopicMessage
+                {
+                    TopicName = topicName,
+                    PartitionCount = partitionCount
+                },
+                default);
+    }
 }

@@ -1,17 +1,5 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.InProcess.Emit;
+﻿using BenchmarkDotNet.Running;
 using ToyStream.Protocol.Benchmark;
 
-
-var summary = BenchmarkRunner.Run<Benchmarks>();
-// var bench = new Benchmarks
-// {
-//     MessageRuns = 10000
-// };
-// await bench.SimpleMessageFlow();
-// bench.SetupFakeServer();
-// await bench.SimpleMessageFlow();
-// await bench.Cleanup();
+// Pass args through so --filter / --job Dry etc. work from the command line.
+BenchmarkRunner.Run<Benchmarks>(args: args);

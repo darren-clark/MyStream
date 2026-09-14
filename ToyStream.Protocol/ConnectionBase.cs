@@ -16,6 +16,8 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
     
     private ResponseCompletionSource? responseCompletionSource;
 
+    // Conditional so call sites don't evaluate their interpolated string arguments unless tracing is on.
+    [Conditional("PROTOCOL_TRACE")]
     protected void Log(string log)
     {
         StringBuilder sb = new();
@@ -26,7 +28,7 @@ public abstract class ConnectionBase: IToyProtocolHandler, IAsyncDisposable
         }
         sb.Append($"[{Environment.CurrentManagedThreadId:D2}]");
         sb.Append($": {log}");
-//        Console.WriteLine(sb.ToString());
+        Console.WriteLine(sb.ToString());
     }
     
     protected ConnectionBase(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken, string? tag = null)
