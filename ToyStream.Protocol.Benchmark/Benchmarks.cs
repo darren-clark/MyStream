@@ -19,9 +19,9 @@ public class Benchmarks
     private CancellationTokenSource cancellation = null!;
     private Utf8String topicName = null!;
 
-    private TestClientConnection virtualClient = null!;
-    private TestClientConnection genericHandlerClient = null!;
-    private TestClientConnection structHandlerClient = null!;
+    private ClientConnection virtualClient = null!;
+    private ClientConnection genericHandlerClient = null!;
+    private ClientConnection structHandlerClient = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -29,7 +29,7 @@ public class Benchmarks
         this.cancellation = new CancellationTokenSource();
         this.topicName = new Utf8String("test");
 
-        // Each arm gets its own pipe pair. Only the server's dispatch differs.
+        // The client is the same implementation in every arm; only the server's dispatch differs.
         this.virtualClient = CreatePair(static (reader, writer, ct) =>
             new VirtualServerConnection(reader, writer, ct));
 
@@ -40,8 +40,7 @@ public class Benchmarks
             new StructHandlerConnection<StructAckHandler>(reader, writer, default, ct));
     }
 
-    private TestClientConnection CreatePair(
-        Func<IToyProtocolReader, IToyProtocolWriter, CancellationToken, ConnectionBase> serverFactory)
+    private ClientConnection CreatePair(Func<PipeReader, PipeWriter, CancellationToken, IAsyncDisposable> serverFactory)
     {
         // Inline schedulers keep the round trip on one thread: without them the Pipe queues each
         // reader continuation to the thread pool, costing two handoffs per round trip.
@@ -54,15 +53,8 @@ public class Benchmarks
         var clientPipe = new Pipe(options);
         var serverPipe = new Pipe(options);
 
-        var client = new TestClientConnection(
-            new ToyProtocolPipeReader(serverPipe.Reader),
-            new ToyProtocolPipeWriter(clientPipe.Writer),
-            this.cancellation.Token);
-
-        var server = serverFactory(
-            new ToyProtocolPipeReader(clientPipe.Reader),
-            new ToyProtocolPipeWriter(serverPipe.Writer),
-            this.cancellation.Token);
+        var client = new ClientConnection(serverPipe.Reader, clientPipe.Writer, this.cancellation.Token);
+        var server = serverFactory(clientPipe.Reader, serverPipe.Writer, this.cancellation.Token);
 
         this.disposables.Add(client);
         this.disposables.Add(server);
@@ -81,7 +73,7 @@ public class Benchmarks
         this.cancellation.Dispose();
     }
 
-    /// <summary>Handler is a virtual method override on the connection itself.</summary>
+    /// <summary>Server dispatches through an abstract method override.</summary>
     [Benchmark(OperationsPerInvoke = RoundTrips, Baseline = true)]
     public async Task VirtualMethod()
     {
@@ -91,7 +83,7 @@ public class Benchmarks
         }
     }
 
-    /// <summary>Handler is injected behind an interface, so the call stays virtual.</summary>
+    /// <summary>Server dispatches through an injected interface, so the call stays virtual.</summary>
     [Benchmark(OperationsPerInvoke = RoundTrips)]
     public async Task GenericHandler()
     {
@@ -101,7 +93,7 @@ public class Benchmarks
         }
     }
 
-    /// <summary>Handler is a struct type argument, so the call should devirtualize.</summary>
+    /// <summary>Server dispatches through a struct type argument, so the call should devirtualize.</summary>
     [Benchmark(OperationsPerInvoke = RoundTrips)]
     public async Task StructHandler()
     {
@@ -130,23 +122,26 @@ public class Benchmarks
     }
 
     // All we do is simply ack the request.
-    private sealed class VirtualServerConnection : ConnectionBase
+    private sealed class VirtualServerConnection : VirtualConnection
     {
-        public VirtualServerConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken)
-            : base(reader, writer, cancellationToken, "server")
+        public VirtualServerConnection(PipeReader reader, PipeWriter writer, CancellationToken cancellationToken)
+            : base(reader, writer, cancellationToken)
         {
         }
 
-        public override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
-            => SendResponse(new AcknowledgeMessage());
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+            => Write(new AcknowledgeMessage(), default);
     }
 
-    private sealed class TestClientConnection : ConnectionBase
+    private sealed class ClientConnection : VirtualConnection
     {
-        public TestClientConnection(IToyProtocolReader reader, IToyProtocolWriter writer, CancellationToken cancellationToken)
-            : base(reader, writer, cancellationToken, "client")
+        public ClientConnection(PipeReader reader, PipeWriter writer, CancellationToken cancellationToken)
+            : base(reader, writer, cancellationToken)
         {
         }
+
+        protected override ValueTask HandleCreateTopicMessage(ref readonly CreateTopicMessage message)
+            => throw new NotImplementedException();
 
         public ValueTask<AcknowledgeResponse> CreateTopic(RefUtf8String topicName, short partitionCount)
             => SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
