@@ -23,6 +23,8 @@ public class ScaleBenchmarks
     private CancellationTokenSource cancellation = null!;
     private ScaleClient asyncPerTypeClient = null!;
     private ScaleClient syncFastPathClient = null!;
+    private ScaleClient asyncPerTypeHandlerClient = null!;
+    private ScaleClient syncFastPathHandlerClient = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -34,6 +36,12 @@ public class ScaleBenchmarks
 
         this.syncFastPathClient = CreatePair(static (reader, writer, ct) =>
             new SyncFastPathConnection(reader, writer, ct));
+
+        this.asyncPerTypeHandlerClient = CreatePair(static (reader, writer, ct) =>
+            new AsyncPerTypeHandlerConnection(reader, writer, new ScaleServerHandler(), ct));
+
+        this.syncFastPathHandlerClient = CreatePair(static (reader, writer, ct) =>
+            new SyncFastPathHandlerConnection(reader, writer, new ScaleServerHandler(), ct));
     }
 
     private ScaleClient CreatePair(Func<PipeReader, PipeWriter, CancellationToken, IAsyncDisposable> serverFactory)
@@ -99,6 +107,24 @@ public class ScaleBenchmarks
         for (var i = 0; i < Operations; i++)
         {
             await this.syncFastPathClient.Send(new ScaleMessage00 { Value = 1 });
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = Operations)]
+    public async Task AsyncPerTypeHandler_AllTypes()
+    {
+        for (var batch = 0; batch < Batches; batch++)
+        {
+            await SendAllTypes(this.asyncPerTypeHandlerClient);
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = Operations)]
+    public async Task SyncFastPathHandler_AllTypes()
+    {
+        for (var batch = 0; batch < Batches; batch++)
+        {
+            await SendAllTypes(this.syncFastPathHandlerClient);
         }
     }
 
