@@ -11,3 +11,10 @@ public interface IMessageHandler
         where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
 }
+
+public interface IMessageHandler<TRequestMessage, TResponseMessage>
+    where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+{
+    ValueTask HandleRequest(ref readonly TRequestMessage message, ResponseWriter<TResponseMessage> responseWriter);
+}

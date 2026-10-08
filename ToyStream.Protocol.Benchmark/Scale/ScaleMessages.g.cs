@@ -7,7 +7,7 @@ public readonly ref struct ScaleMessage00 : IRequestMessage<ScaleMessage00, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)10;
+    public static MessageType Type => (MessageType)10;
 
     static bool IMessage<ScaleMessage00>.TryRead<TReader>(ref TReader reader, out ScaleMessage00 message, out int bytesToRead)
     {
@@ -28,7 +28,7 @@ public readonly ref struct ScaleMessage01 : IRequestMessage<ScaleMessage01, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)11;
+    public static MessageType Type => (MessageType)11;
 
     static bool IMessage<ScaleMessage01>.TryRead<TReader>(ref TReader reader, out ScaleMessage01 message, out int bytesToRead)
     {
@@ -49,7 +49,7 @@ public readonly ref struct ScaleMessage02 : IRequestMessage<ScaleMessage02, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)12;
+    public static MessageType Type => (MessageType)12;
 
     static bool IMessage<ScaleMessage02>.TryRead<TReader>(ref TReader reader, out ScaleMessage02 message, out int bytesToRead)
     {
@@ -70,7 +70,7 @@ public readonly ref struct ScaleMessage03 : IRequestMessage<ScaleMessage03, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)13;
+    public static MessageType Type => (MessageType)13;
 
     static bool IMessage<ScaleMessage03>.TryRead<TReader>(ref TReader reader, out ScaleMessage03 message, out int bytesToRead)
     {
@@ -91,7 +91,7 @@ public readonly ref struct ScaleMessage04 : IRequestMessage<ScaleMessage04, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)14;
+    public static MessageType Type => (MessageType)14;
 
     static bool IMessage<ScaleMessage04>.TryRead<TReader>(ref TReader reader, out ScaleMessage04 message, out int bytesToRead)
     {
@@ -112,7 +112,7 @@ public readonly ref struct ScaleMessage05 : IRequestMessage<ScaleMessage05, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)15;
+    public static MessageType Type => (MessageType)15;
 
     static bool IMessage<ScaleMessage05>.TryRead<TReader>(ref TReader reader, out ScaleMessage05 message, out int bytesToRead)
     {
@@ -133,7 +133,7 @@ public readonly ref struct ScaleMessage06 : IRequestMessage<ScaleMessage06, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)16;
+    public static MessageType Type => (MessageType)16;
 
     static bool IMessage<ScaleMessage06>.TryRead<TReader>(ref TReader reader, out ScaleMessage06 message, out int bytesToRead)
     {
@@ -154,7 +154,7 @@ public readonly ref struct ScaleMessage07 : IRequestMessage<ScaleMessage07, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)17;
+    public static MessageType Type => (MessageType)17;
 
     static bool IMessage<ScaleMessage07>.TryRead<TReader>(ref TReader reader, out ScaleMessage07 message, out int bytesToRead)
     {
@@ -175,7 +175,7 @@ public readonly ref struct ScaleMessage08 : IRequestMessage<ScaleMessage08, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)18;
+    public static MessageType Type => (MessageType)18;
 
     static bool IMessage<ScaleMessage08>.TryRead<TReader>(ref TReader reader, out ScaleMessage08 message, out int bytesToRead)
     {
@@ -196,7 +196,7 @@ public readonly ref struct ScaleMessage09 : IRequestMessage<ScaleMessage09, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)19;
+    public static MessageType Type => (MessageType)19;
 
     static bool IMessage<ScaleMessage09>.TryRead<TReader>(ref TReader reader, out ScaleMessage09 message, out int bytesToRead)
     {
@@ -217,7 +217,7 @@ public readonly ref struct ScaleMessage10 : IRequestMessage<ScaleMessage10, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)20;
+    public static MessageType Type => (MessageType)20;
 
     static bool IMessage<ScaleMessage10>.TryRead<TReader>(ref TReader reader, out ScaleMessage10 message, out int bytesToRead)
     {
@@ -238,7 +238,7 @@ public readonly ref struct ScaleMessage11 : IRequestMessage<ScaleMessage11, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)21;
+    public static MessageType Type => (MessageType)21;
 
     static bool IMessage<ScaleMessage11>.TryRead<TReader>(ref TReader reader, out ScaleMessage11 message, out int bytesToRead)
     {
@@ -259,7 +259,7 @@ public readonly ref struct ScaleMessage12 : IRequestMessage<ScaleMessage12, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)22;
+    public static MessageType Type => (MessageType)22;
 
     static bool IMessage<ScaleMessage12>.TryRead<TReader>(ref TReader reader, out ScaleMessage12 message, out int bytesToRead)
     {
@@ -280,7 +280,7 @@ public readonly ref struct ScaleMessage13 : IRequestMessage<ScaleMessage13, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)23;
+    public static MessageType Type => (MessageType)23;
 
     static bool IMessage<ScaleMessage13>.TryRead<TReader>(ref TReader reader, out ScaleMessage13 message, out int bytesToRead)
     {
@@ -301,7 +301,7 @@ public readonly ref struct ScaleMessage14 : IRequestMessage<ScaleMessage14, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)24;
+    public static MessageType Type => (MessageType)24;
 
     static bool IMessage<ScaleMessage14>.TryRead<TReader>(ref TReader reader, out ScaleMessage14 message, out int bytesToRead)
     {
@@ -322,7 +322,7 @@ public readonly ref struct ScaleMessage15 : IRequestMessage<ScaleMessage15, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)25;
+    public static MessageType Type => (MessageType)25;
 
     static bool IMessage<ScaleMessage15>.TryRead<TReader>(ref TReader reader, out ScaleMessage15 message, out int bytesToRead)
     {
@@ -343,7 +343,7 @@ public readonly ref struct ScaleMessage16 : IRequestMessage<ScaleMessage16, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)26;
+    public static MessageType Type => (MessageType)26;
 
     static bool IMessage<ScaleMessage16>.TryRead<TReader>(ref TReader reader, out ScaleMessage16 message, out int bytesToRead)
     {
@@ -364,7 +364,7 @@ public readonly ref struct ScaleMessage17 : IRequestMessage<ScaleMessage17, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)27;
+    public static MessageType Type => (MessageType)27;
 
     static bool IMessage<ScaleMessage17>.TryRead<TReader>(ref TReader reader, out ScaleMessage17 message, out int bytesToRead)
     {
@@ -385,7 +385,7 @@ public readonly ref struct ScaleMessage18 : IRequestMessage<ScaleMessage18, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)28;
+    public static MessageType Type => (MessageType)28;
 
     static bool IMessage<ScaleMessage18>.TryRead<TReader>(ref TReader reader, out ScaleMessage18 message, out int bytesToRead)
     {
@@ -406,7 +406,7 @@ public readonly ref struct ScaleMessage19 : IRequestMessage<ScaleMessage19, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)29;
+    public static MessageType Type => (MessageType)29;
 
     static bool IMessage<ScaleMessage19>.TryRead<TReader>(ref TReader reader, out ScaleMessage19 message, out int bytesToRead)
     {
@@ -427,7 +427,7 @@ public readonly ref struct ScaleMessage20 : IRequestMessage<ScaleMessage20, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)30;
+    public static MessageType Type => (MessageType)30;
 
     static bool IMessage<ScaleMessage20>.TryRead<TReader>(ref TReader reader, out ScaleMessage20 message, out int bytesToRead)
     {
@@ -448,7 +448,7 @@ public readonly ref struct ScaleMessage21 : IRequestMessage<ScaleMessage21, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)31;
+    public static MessageType Type => (MessageType)31;
 
     static bool IMessage<ScaleMessage21>.TryRead<TReader>(ref TReader reader, out ScaleMessage21 message, out int bytesToRead)
     {
@@ -469,7 +469,7 @@ public readonly ref struct ScaleMessage22 : IRequestMessage<ScaleMessage22, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)32;
+    public static MessageType Type => (MessageType)32;
 
     static bool IMessage<ScaleMessage22>.TryRead<TReader>(ref TReader reader, out ScaleMessage22 message, out int bytesToRead)
     {
@@ -490,7 +490,7 @@ public readonly ref struct ScaleMessage23 : IRequestMessage<ScaleMessage23, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)33;
+    public static MessageType Type => (MessageType)33;
 
     static bool IMessage<ScaleMessage23>.TryRead<TReader>(ref TReader reader, out ScaleMessage23 message, out int bytesToRead)
     {
@@ -511,7 +511,7 @@ public readonly ref struct ScaleMessage24 : IRequestMessage<ScaleMessage24, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)34;
+    public static MessageType Type => (MessageType)34;
 
     static bool IMessage<ScaleMessage24>.TryRead<TReader>(ref TReader reader, out ScaleMessage24 message, out int bytesToRead)
     {
@@ -532,7 +532,7 @@ public readonly ref struct ScaleMessage25 : IRequestMessage<ScaleMessage25, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)35;
+    public static MessageType Type => (MessageType)35;
 
     static bool IMessage<ScaleMessage25>.TryRead<TReader>(ref TReader reader, out ScaleMessage25 message, out int bytesToRead)
     {
@@ -553,7 +553,7 @@ public readonly ref struct ScaleMessage26 : IRequestMessage<ScaleMessage26, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)36;
+    public static MessageType Type => (MessageType)36;
 
     static bool IMessage<ScaleMessage26>.TryRead<TReader>(ref TReader reader, out ScaleMessage26 message, out int bytesToRead)
     {
@@ -574,7 +574,7 @@ public readonly ref struct ScaleMessage27 : IRequestMessage<ScaleMessage27, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)37;
+    public static MessageType Type => (MessageType)37;
 
     static bool IMessage<ScaleMessage27>.TryRead<TReader>(ref TReader reader, out ScaleMessage27 message, out int bytesToRead)
     {
@@ -595,7 +595,7 @@ public readonly ref struct ScaleMessage28 : IRequestMessage<ScaleMessage28, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)38;
+    public static MessageType Type => (MessageType)38;
 
     static bool IMessage<ScaleMessage28>.TryRead<TReader>(ref TReader reader, out ScaleMessage28 message, out int bytesToRead)
     {
@@ -616,7 +616,7 @@ public readonly ref struct ScaleMessage29 : IRequestMessage<ScaleMessage29, Ackn
 {
     public required short Value { get; init; }
 
-    public MessageType Type => (MessageType)39;
+    public static MessageType Type => (MessageType)39;
 
     static bool IMessage<ScaleMessage29>.TryRead<TReader>(ref TReader reader, out ScaleMessage29 message, out int bytesToRead)
     {

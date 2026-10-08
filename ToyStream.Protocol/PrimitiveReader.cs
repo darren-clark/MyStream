@@ -13,7 +13,7 @@ internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiv
     public ReadOnlySequence<byte> Remaining => this.reader.UnreadSequence;
 
     public long Consumed => this.reader.Consumed;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadInt16(out short value, out int bytesToRead)
     {

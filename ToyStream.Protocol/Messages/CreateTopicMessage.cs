@@ -7,7 +7,7 @@ public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessag
     public required RefUtf8String TopicName { get; init; }
     public required short PartitionCount { get; init; }
 
-    public MessageType Type => MessageType.CreateTopic;
+    public static MessageType Type => MessageType.CreateTopic;
 
     static bool IMessage<CreateTopicMessage>.TryRead<TReader>(ref TReader reader, out CreateTopicMessage message, out int bytesToRead)
     {

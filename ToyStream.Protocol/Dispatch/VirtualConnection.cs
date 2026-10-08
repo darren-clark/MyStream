@@ -61,13 +61,23 @@ public abstract class VirtualConnection : IAsyncDisposable
         where TMessage : struct, IMessage<TMessage>, allows ref struct
     {
         PrimitiveWriter<PipeWriter> primitiveWriter = new(this.writer);
-        primitiveWriter.Write(message.Type);
+        primitiveWriter.Write(TMessage.Type);
         message.Write(primitiveWriter);
 
-        return Flush();
+        // Returning FlushAsync's task directly keeps this method non-async, so the common case
+        // costs no state machine at all.
+        var flush = this.writer.FlushAsync(writeCancellationToken);
+        if (flush.IsCompletedSuccessfully)
+        {
+            flush.GetAwaiter().GetResult();
+            return default;
+        }
+
+        return AwaitFlush(flush);
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
-        async ValueTask Flush() => await this.writer.FlushAsync(writeCancellationToken).ConfigureAwait(false);
+        static async ValueTask AwaitFlush(ValueTask<FlushResult> flushTask)
+            => await flushTask.ConfigureAwait(false);
     }
 
     private static bool TryReadMessage<TMessage>(ref PrimitiveReader reader, out TMessage message, out int bytesToRead)
@@ -119,7 +129,7 @@ public abstract class VirtualConnection : IAsyncDisposable
             buffer = buffer.Slice(messageBuffer.End);
             return messageType;
         }
-
+        
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
         async ValueTask DispatchCreateTopic()
         {

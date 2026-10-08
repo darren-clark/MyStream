@@ -32,7 +32,7 @@ public sealed class AsyncPerTypeHandlerConnection : IAsyncDisposable
         where TMessage : struct, IMessage<TMessage>, allows ref struct
     {
         PrimitiveWriter<PipeWriter> primitiveWriter = new(this.writer);
-        primitiveWriter.Write(message.Type);
+        primitiveWriter.Write(TMessage.Type);
         message.Write(primitiveWriter);
 
         return Flush();
