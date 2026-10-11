@@ -3,7 +3,7 @@
 using System.Buffers;
 using System.Text;
 
-public readonly ref struct RefUtf8String: IEquatable<Utf8String>, ICopyableTo<RefUtf8String, Utf8String>
+public readonly ref struct RefUtf8String: IEquatable<Utf8String>
 {
     private readonly ReadOnlySequence<byte> value;
 

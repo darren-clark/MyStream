@@ -14,12 +14,12 @@ public class Utf8String: IEquatable<Utf8String>
 
     public Utf8String(ReadOnlySpan<byte> value)
     {
-        this.value = this.value.ToArray();
+        this.value = value.ToArray();
     }
 
     public Utf8String(ReadOnlySequence<byte> value)
     {
-        this.value = this.value.ToArray();
+        this.value = value.ToArray();
     }
     
     public bool Equals(Utf8String? other) =>

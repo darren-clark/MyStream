@@ -6,14 +6,14 @@ using System.Runtime.CompilerServices;
 using Shared;
 
 [method: MethodImpl(MethodImplOptions.AggressiveInlining)]
-internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveReader
+public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveReader
 {
     private SequenceReader<byte> reader = new(sequence);
 
     public ReadOnlySequence<byte> Remaining => this.reader.UnreadSequence;
 
     public long Consumed => this.reader.Consumed;
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadInt16(out short value, out int bytesToRead)
     {
@@ -51,5 +51,22 @@ internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiv
         value = new RefUtf8String(buffer);
         bytesToRead = 0;
         return true;
-    }    
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadMessageType(out MessageType messageType, out int bytesToRead)
+    {
+        if (reader.Remaining < sizeof(byte))
+        {
+            messageType = default;
+            bytesToRead = 1;
+            return false;
+        }
+
+        var read = this.reader.TryRead(out var value);
+        Debug.Assert(read);
+        messageType = (MessageType)value;
+        bytesToRead = 0;
+        return true;
+    }
 }

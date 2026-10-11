@@ -1,14 +1,13 @@
 ﻿namespace ToyStream.Protocol.Messages;
 
-using System.Text;
 using Shared;
 
-public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
+public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessage, AcknowledgeMessage>
 {
     public required RefUtf8String TopicName { get; init; }
     public required short PartitionCount { get; init; }
 
-    public MessageType Type => MessageType.CreateTopic;
+    public static MessageType Type => MessageType.CreateTopic;
 
     static bool IMessage<CreateTopicMessage>.TryRead<TReader>(ref TReader reader, out CreateTopicMessage message, out int bytesToRead)
     {
@@ -40,6 +39,5 @@ public readonly ref struct CreateTopicMessage: IMessage<CreateTopicMessage>
         writer.Write(PartitionCount);
     }
 
-    void IMessage<CreateTopicMessage>.Write<TWriter>(TWriter writer) => Write(writer);
-
+    void IMessage.Write<TWriter>(TWriter writer) => Write(writer);
 }

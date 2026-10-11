@@ -1,14 +1,13 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Running;
-using BenchmarkDotNet.Toolchains.InProcess.Emit;
+﻿using BenchmarkDotNet.Running;
 using ToyStream.Protocol.Benchmark;
 
+if (args is ["jitdump", ..])
+{
+    await JitDump.RunAsync();
+    return;
+}
 
-var summary = BenchmarkRunner.Run<Benchmarks>();
-// var bench = new Benchmarks();
-// bench.MessageRuns = 1000;
-// bench.SetupFakeServer();
-// await bench.SimpleMessageFlow();
-// await bench.Cleanup();
+// Switcher so a single class can be selected with --filter; args pass through for --job Long etc.
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+
+public partial class Program;

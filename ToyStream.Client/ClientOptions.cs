@@ -2,6 +2,6 @@
 
 public class ClientOptions
 {
-    public string Host { get; set; }
-    public short Port { get; set; }
+    public required string Host { get; init; }
+    public required short Port { get; init; }
 }

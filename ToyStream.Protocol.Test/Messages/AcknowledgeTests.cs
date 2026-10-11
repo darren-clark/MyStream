@@ -1,16 +1,16 @@
 ﻿namespace ToyStream.Protocol.Test.Messages;
 
 using System.Buffers;
-using Responses;
+using Protocol.Messages;
 
 using static ProtocolTestHelpers;
 
 public class AcknowledgeTests
 {
-    private static void GetWriteBuffer(out ArrayBufferWriter<byte> buffer, out PrimitiveWriter<ArrayBufferWriter<byte>> writer, int size = 1024)
+    private static void GetWriteBuffer(out TestPipeWriter buffer, out PrimitiveWriter writer, int size = 1024)
     {
-        buffer = new ArrayBufferWriter<byte>(1024);
-        writer = new (buffer);
+        buffer = new TestPipeWriter();
+        writer = new PrimitiveWriter(buffer);
     }
     
     private static void GetReadBuffer(out ReadOnlySequence<byte> buffer, out PrimitiveReader reader)
@@ -24,7 +24,7 @@ public class AcknowledgeTests
     {
 
         GetWriteBuffer(out var buffer, out var writer);
-        ((IMessage<AcknowledgeMessage>)new AcknowledgeMessage()).Write(writer);
+        WriteMessage(new AcknowledgeMessage(), writer);
         Assert.That(buffer.WrittenCount, Is.EqualTo(0));
     }
 

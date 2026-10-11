@@ -10,12 +10,12 @@ public interface IServerCore
 
 public class ServerCore: IServerCore, IAsyncDisposable
 {
-    private readonly ITopicManager topicManager;
+    private readonly ITopicService topicService;
     private readonly ConcurrentDictionary<string, IAdminClient> clients = new();
 
-    public ServerCore(ITopicManager topicManager)
+    public ServerCore(ITopicService topicService)
     {
-        this.topicManager = topicManager;
+        this.topicService = topicService;
     }
 
     public void RegisterClient(IAdminClient client)

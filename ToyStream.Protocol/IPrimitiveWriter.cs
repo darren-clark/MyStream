@@ -2,7 +2,7 @@
 
 using Shared;
 
-internal interface IPrimitiveWriter
+public interface IPrimitiveWriter
 {
     public void Write(byte value);
     public void Write(short value);
