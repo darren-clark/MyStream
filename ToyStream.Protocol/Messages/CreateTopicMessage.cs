@@ -1,8 +1,10 @@
-﻿namespace ToyStream.Protocol.Messages;
+﻿using ToyStream.Protocol.Responses;
+
+namespace ToyStream.Protocol.Messages;
 
 using Shared;
 
-public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessage, AcknowledgeMessage>
+public readonly ref struct CreateTopicMessage: IRequestMessage<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
 {
     public required RefUtf8String TopicName { get; init; }
     public required short PartitionCount { get; init; }

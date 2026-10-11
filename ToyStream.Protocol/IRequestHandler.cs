@@ -1,3 +1,5 @@
+using ToyStream.Protocol.Responses;
+
 namespace ToyStream.Protocol;
 
 using Messages;

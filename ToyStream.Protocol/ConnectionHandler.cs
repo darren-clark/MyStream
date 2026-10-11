@@ -1,7 +1,7 @@
-using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
+using ToyStream.Protocol.Messages;
 
 namespace ToyStream.Protocol;
 
@@ -30,17 +30,25 @@ public static class ConnectionHandler
         return DispatchResult.Dispatched(handler.DispatchRequest(request, responseWriter, cancellationToken));
     }
 
-    public static DispatchResult TryParseAndCompleteResponse<TResponseMessage, TResponse>(
-        PendingRequests pending, ref PrimitiveReader reader)
-        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-        where TResponse : class, IResponse<TResponseMessage, TResponse>
+    /// <summary>
+    /// Non-async so a topic service that answers synchronously - which an in-memory one always does -
+    /// costs no second state machine on the per-message path.
+    /// </summary>
+    public static ValueTask AwaitResultAndWriteAcknowledge<TResult>(ValueTask<TResult> task,
+        ResponseWriter<AcknowledgeMessage<TResult>> responseWriter)
+        where TResult : unmanaged, Enum
     {
-        if (!TResponseMessage.TryRead(ref reader, out var response, out var bytesNeeded))
+        if (task.IsCompletedSuccessfully)
         {
-            return DispatchResult.Insufficient(bytesNeeded);
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(task.Result));
+            return default;
         }
 
-        pending.CompleteResponse<TResponseMessage, TResponse>(in response);
-        return DispatchResult.Dispatched(default, wroteResponse: false);
+        return AwaitAndWrite(task, responseWriter);
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+        static async ValueTask AwaitAndWrite(ValueTask<TResult> pending,
+            ResponseWriter<AcknowledgeMessage<TResult>> writer)
+            => writer.WriteResponse(AcknowledgeMessage.WithResult(await pending.ConfigureAwait(false)));
     }
 }

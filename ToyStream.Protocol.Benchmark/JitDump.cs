@@ -26,9 +26,8 @@ internal static class JitDump
         var server = new Connection<BenchmarkServerHandler>(
             clientToServer.Reader, serverToClient.Writer, new BenchmarkServerHandler());
 
-        var pending = new PendingRequests(clientToServer.Writer);
         var client = new Connection<BenchmarkClientHandler>(
-            serverToClient.Reader, clientToServer.Writer, new BenchmarkClientHandler(pending));
+            serverToClient.Reader, clientToServer.Writer, new BenchmarkClientHandler());
 
         _ = server.Start(cancellation.Token);
         _ = client.Start(cancellation.Token);
@@ -36,7 +35,7 @@ internal static class JitDump
         var topicName = new Utf8String("test");
         for (var i = 0; i < 100_000; i++)
         {
-            await pending.SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
+            await client.SendMessage<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>, AcknowledgeResponse<CreateTopicResult>>(
                 new CreateTopicMessage { TopicName = topicName, PartitionCount = 1 },
                 default);
         }

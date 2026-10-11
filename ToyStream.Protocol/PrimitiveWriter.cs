@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ToyStream.Protocol;
 
 using System.Buffers;
@@ -47,6 +49,7 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
     /// <summary>
     /// <see cref="IBufferWriter{T}"/>'s Write is an extension on the interface, so routing through it
     /// would box the writer. GetSpan/Advance are called on PipeWriter directly instead.
+    /// Requires a contiguous span, unlike the extension, which segments large writes.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Write(ReadOnlySpan<byte> value)
@@ -81,7 +84,7 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Write<TEnum>(TEnum value) where TEnum: struct, Enum
+    public void Write<TEnum>(TEnum value) where TEnum: unmanaged, Enum
     {
         var size = Unsafe.SizeOf<TEnum>();
         switch (size)
@@ -97,6 +100,9 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
                 break;
             case 8:
                 this.Write(Unsafe.As<TEnum, long>(ref value));
+                break;
+            default:
+                ThrowHelpers.ThrowInvalidEnumSizeException<TEnum>();
                 break;
         }
     }

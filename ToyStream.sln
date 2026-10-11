@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Protocol", "ToySt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Protocol.Benchmark", "ToyStream.Protocol.Benchmark\ToyStream.Protocol.Benchmark.csproj", "{CF62B3DD-3A52-4BB0-8B8A-053F89CB3638}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Server.InMemory", "ToyStream.Server.InMemory\ToyStream.Server.InMemory.csproj", "{4E67B2BC-D88E-4396-967E-6CE8143FE6AF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{CF62B3DD-3A52-4BB0-8B8A-053F89CB3638}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF62B3DD-3A52-4BB0-8B8A-053F89CB3638}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF62B3DD-3A52-4BB0-8B8A-053F89CB3638}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E67B2BC-D88E-4396-967E-6CE8143FE6AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E67B2BC-D88E-4396-967E-6CE8143FE6AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E67B2BC-D88E-4396-967E-6CE8143FE6AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E67B2BC-D88E-4396-967E-6CE8143FE6AF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

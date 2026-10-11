@@ -25,22 +25,22 @@ public class ConnectionTests
         var (clientToServer, serverToClient) = CreatePipes();
         using var cancellation = new CancellationTokenSource();
 
-        var pending = new PendingRequests(clientToServer.Writer);
         var client = new Connection<ClientTestHandler>(
-            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler(pending));
+            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler());
         _ = client.Start(cancellation.Token);
 
-        var send = pending.SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
+        var send = client.SendMessage<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>, AcknowledgeResponse<CreateTopicResult>>(
             CreateTopic("topic", 4), default);
 
         Assert.That(send.IsCompleted, Is.False, "send completed before the peer acknowledged");
 
         // Act as the server and acknowledge.
         var serverWriter = new PrimitiveWriter(serverToClient.Writer);
-        new ResponseWriter<AcknowledgeMessage>(serverWriter).WriteResponse(new AcknowledgeMessage());
+        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverWriter)
+            .WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
         await serverToClient.Writer.FlushAsync(cancellation.Token);
 
-        Assert.That(await send, Is.Not.Null);
+        Assert.That((await send).Result, Is.EqualTo(CreateTopicResult.Success));
         await cancellation.CancelAsync();
     }
 
@@ -54,9 +54,8 @@ public class ConnectionTests
         var server = new Connection<ServerTestHandler>(
             clientToServer.Reader, serverToClient.Writer, new ServerTestHandler(firstRequest));
 
-        var pending = new PendingRequests(clientToServer.Writer);
         var client = new Connection<ClientTestHandler>(
-            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler(pending));
+            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler());
 
         // Start returns only when the read loop ends, so it is deliberately not awaited here.
         _ = server.Start(cancellation.Token);
@@ -64,10 +63,10 @@ public class ConnectionTests
 
         for (var i = 0; i < 100; i++)
         {
-            var response = await pending.SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
+            var response = await client.SendMessage<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>, AcknowledgeResponse<CreateTopicResult>>(
                 CreateTopic("test", 1), default);
 
-            Assert.That(response, Is.Not.Null, $"round trip {i} returned no response");
+            Assert.That(response.Result, Is.EqualTo(CreateTopicResult.Success), $"round trip {i} returned the wrong result");
         }
 
         await firstRequest.Task;
@@ -75,36 +74,31 @@ public class ConnectionTests
     }
 
     private readonly struct ServerTestHandler(TaskCompletionSource received)
-        : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage>
+        : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
             PrimitiveWriter writer, CancellationToken cancellationToken) =>
             messageType switch
             {
                 MessageType.CreateTopic => ConnectionHandler
-                    .TryParseAndDispatchRequest<ServerTestHandler, CreateTopicMessage, AcknowledgeMessage>(
+                    .TryParseAndDispatchRequest<ServerTestHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(
                         this, writer, ref reader, cancellationToken),
                 _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
             };
 
         public ValueTask DispatchRequest(CreateTopicMessage message,
-            ResponseWriter<AcknowledgeMessage> responseWriter, CancellationToken cancellationToken)
+            ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter, CancellationToken cancellationToken)
         {
             received.TrySetResult();
-            responseWriter.WriteResponse(new AcknowledgeMessage());
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
             return default;
         }
     }
 
-    private readonly struct ClientTestHandler(PendingRequests pending) : IConnectionHandler
+    private readonly struct ClientTestHandler : IConnectionHandler
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
             PrimitiveWriter writer, CancellationToken cancellationToken) =>
-            messageType switch
-            {
-                MessageType.Acknowledge => ConnectionHandler
-                    .TryParseAndCompleteResponse<AcknowledgeMessage, AcknowledgeResponse>(pending, ref reader),
-                _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
-            };
+            ConnectionHandler.ThrowUnexpectedMessage(messageType);
     }
 }

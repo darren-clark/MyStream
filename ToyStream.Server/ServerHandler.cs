@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
 using ToyStream.Protocol;
 using ToyStream.Protocol.Messages;
+using ToyStream.Protocol.Responses;
 
 namespace ToyStream.Server;
 
@@ -10,23 +11,21 @@ namespace ToyStream.Server;
 /// </summary>
 public readonly struct ServerHandler(ITopicService topicService):
     IConnectionHandler,
-    IRequestHandler<CreateTopicMessage, AcknowledgeMessage>
+    IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
 {
     public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
         PrimitiveWriter writer, CancellationToken cancellationToken) =>
         messageType switch
         {
             MessageType.CreateTopic => ConnectionHandler
-                .TryParseAndDispatchRequest<ServerHandler, CreateTopicMessage, AcknowledgeMessage>(this, writer,
+                .TryParseAndDispatchRequest<ServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this, writer,
                     ref reader, cancellationToken),
             _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
         };
 
-    public ValueTask DispatchRequest(CreateTopicMessage message, ResponseWriter<AcknowledgeMessage> responseWriter,
+    public ValueTask DispatchRequest(CreateTopicMessage message,
+        ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter,
         CancellationToken cancellationToken)
-    {
-        var createTopic = topicService.CreateTopic(message.TopicName, message.PartitionCount);
-        responseWriter.WriteResponse(new AcknowledgeMessage());
-        return createTopic;
-    }
+        => ConnectionHandler.AwaitResultAndWriteAcknowledge(
+            topicService.CreateTopic(message.TopicName, message.PartitionCount), responseWriter);
 }

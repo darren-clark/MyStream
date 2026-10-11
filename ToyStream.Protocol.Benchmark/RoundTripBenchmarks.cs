@@ -19,7 +19,7 @@ public class RoundTripBenchmarks
 
     private CancellationTokenSource cancellation = null!;
     private Utf8String topicName = null!;
-    private PendingRequests pending = null!;
+    private Connection<BenchmarkClientHandler> client = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -38,13 +38,12 @@ public class RoundTripBenchmarks
         var server = new Connection<BenchmarkServerHandler>(
             clientToServer.Reader, serverToClient.Writer, new BenchmarkServerHandler());
 
-        this.pending = new PendingRequests(clientToServer.Writer);
-        var client = new Connection<BenchmarkClientHandler>(
-            serverToClient.Reader, clientToServer.Writer, new BenchmarkClientHandler(this.pending));
+        this.client = new Connection<BenchmarkClientHandler>(
+            serverToClient.Reader, clientToServer.Writer, new BenchmarkClientHandler());
 
         // Start returns only when the read loop ends, so it is deliberately not awaited here.
         _ = server.Start(this.cancellation.Token);
-        _ = client.Start(this.cancellation.Token);
+        _ = this.client.Start(this.cancellation.Token);
     }
 
     [GlobalCleanup]
@@ -59,7 +58,7 @@ public class RoundTripBenchmarks
     {
         for (var i = 0; i < RoundTrips; i++)
         {
-            await this.pending.SendMessage<CreateTopicMessage, AcknowledgeMessage, AcknowledgeResponse>(
+            await this.client.SendMessage<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>, AcknowledgeResponse<CreateTopicResult>>(
                 new CreateTopicMessage { TopicName = this.topicName, PartitionCount = 1 },
                 default);
         }

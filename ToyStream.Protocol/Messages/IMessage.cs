@@ -2,8 +2,6 @@
 
 public interface IMessage
 {
-    internal static abstract MessageType Type { get; }
-
     internal void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct;
 }
 
