@@ -31,6 +31,16 @@ public static class ConnectionHandler
     }
 
     /// <summary>
+    /// Parses a request header without dispatching it, for handlers that stream a payload afterwards.
+    /// The reader must be the caller's local: the message is a view over it.
+    /// </summary>
+    public static bool TryParseRequest<TRequest, TResponse>(ref PrimitiveReader reader, out TRequest message,
+        out int bytesNeeded)
+        where TRequest : struct, IRequestMessage<TRequest, TResponse>, allows ref struct
+        where TResponse : struct, IResponseMessage<TResponse>, allows ref struct
+        => TRequest.TryRead(ref reader, out message, out bytesNeeded);
+
+    /// <summary>
     /// Non-async so a topic service that answers synchronously - which an in-memory one always does -
     /// costs no second state machine on the per-message path.
     /// </summary>

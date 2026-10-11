@@ -1,11 +1,9 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
-
-namespace ToyStream.Protocol;
+﻿namespace ToyStream.Protocol;
 
 using System.Buffers;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Shared;
 
 [method: MethodImpl(MethodImplOptions.AggressiveInlining)]

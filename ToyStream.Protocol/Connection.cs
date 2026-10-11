@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ToyStream.Protocol;
 
@@ -47,6 +49,7 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                 }
 
                 var wroteResponse = false;
+                var streamed = false;
                 while (true)
                 {
                     var primitiveReader = new PrimitiveReader(buffer);
@@ -68,6 +71,19 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
 
                     buffer = primitiveReader.Remaining;
 
+                    if (dispatched.Receiver is not null)
+                    {
+                        // The pump advances the reader itself, so this batch ends here.
+                        await this.PumpPayload(buffer, dispatched.PayloadLength, dispatched.Receiver,
+                            cancellationToken).ConfigureAwait(false);
+
+                        buffer = ReadOnlySequence<byte>.Empty;
+                        bytesNeeded = 1;
+                        wroteResponse = true;
+                        streamed = true;
+                        break;
+                    }
+
                     wroteResponse |= dispatched.WroteResponse;
                     if (!dispatched.Task.IsCompleted)
                     {
@@ -76,7 +92,10 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                 }
 
                 // Advance only once every handler has consumed its message, which is a view over this buffer.
-                this.reader.AdvanceTo(buffer.Start, buffer.End);
+                if (!streamed)
+                {
+                    this.reader.AdvanceTo(buffer.Start, buffer.End);
+                }
 
                 // One flush per read rather than per message, so a batch of pipelined requests pays once.
                 if (wroteResponse)
@@ -97,4 +116,52 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
         {
         }
     }
+
+    /// <summary>
+    /// Feeds a payload to its receiver straight from pipe memory. Chunks are never copied, and the
+    /// reader is advanced past each one as soon as the receiver returns - so a receiver that keeps
+    /// bytes must copy them.
+    /// </summary>
+    private async ValueTask PumpPayload(ReadOnlySequence<byte> buffered, long length,
+        IPayloadReceiver receiver, CancellationToken cancellationToken)
+    {
+        // Spend whatever the header read already pulled in.
+        var chunk = buffered.Length <= length ? buffered : buffered.Slice(0, length);
+        if (!chunk.IsEmpty)
+        {
+            await receiver.ReceiveAsync(chunk, cancellationToken).ConfigureAwait(false);
+            length -= chunk.Length;
+        }
+
+        this.reader.AdvanceTo(chunk.End);
+
+        while (length > 0)
+        {
+            var result = await this.reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            chunk = result.Buffer.Length <= length ? result.Buffer : result.Buffer.Slice(0, length);
+
+            if (chunk.IsEmpty)
+            {
+                if (result.IsCompleted)
+                {
+                    ThrowTruncatedPayload(length);
+                }
+
+                this.reader.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+                continue;
+            }
+
+            await receiver.ReceiveAsync(chunk, cancellationToken).ConfigureAwait(false);
+            length -= chunk.Length;
+            this.reader.AdvanceTo(chunk.End);
+        }
+
+        await receiver.CompleteAsync(new PrimitiveWriter(this.Writer), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    [DoesNotReturn]
+    [StackTraceHidden]
+    private static void ThrowTruncatedPayload(long missing) =>
+        throw new InvalidOperationException($"Connection closed with {missing} payload bytes outstanding.");
 }

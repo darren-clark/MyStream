@@ -1,15 +1,20 @@
 namespace ToyStream.Server.InMemory;
 
-public class InMemoryTopic: ITopic
+public sealed class InMemoryTopic
 {
-    private readonly List<InMemoryPartition> partitions;
+    private readonly InMemoryPartition[] partitions;
 
-    public InMemoryTopic(int partitionCount)
+    public InMemoryTopic(short partitionCount)
     {
-        partitions = new List<InMemoryPartition>(partitionCount);
+        this.partitions = new InMemoryPartition[partitionCount];
         for (var i = 0; i < partitionCount; i++)
         {
-            partitions.Add(new InMemoryPartition());
+            this.partitions[i] = new InMemoryPartition();
         }
     }
+
+    public int PartitionCount => this.partitions.Length;
+
+    public InMemoryPartition? GetPartition(short partitionId) =>
+        (uint)partitionId < (uint)this.partitions.Length ? this.partitions[partitionId] : null;
 }

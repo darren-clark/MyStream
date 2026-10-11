@@ -1,5 +1,6 @@
 ﻿namespace ToyStream.Protocol;
 
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
@@ -51,6 +52,40 @@ public abstract class Connection(PipeWriter writer)
             var result = await responseCompletion.ValueTask.ConfigureAwait(false);
             await cancellation.DisposeAsync();
             return result;
+        }
+    }
+
+    /// <summary>
+    /// Header then payload, so a large body is never buffered whole. The header write stays here
+    /// because a ref struct cannot be a parameter of an async method; only the copy and the wait are.
+    /// </summary>
+    public ValueTask<TResponse> SendStreamingMessage<TRequestMessage, TResponseMessage, TResponse>(
+        TRequestMessage requestMessage, ReadOnlySequence<byte> payload, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+        where TResponse : class, IResponse<TResponseMessage, TResponse>
+    {
+        var completionSource = this.cachedCompletionSources.Get<TResponse>();
+        this.responseCompletionSource = completionSource;
+        this.parser = ParseAndComplete<TResponseMessage, TResponse>;
+
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.Write(TRequestMessage.Type);
+        requestMessage.Write(primitiveWriter);
+
+        return StreamAndWait(writer, payload, completionSource, cancellationToken);
+
+        static async ValueTask<TResponse> StreamAndWait(PipeWriter writer, ReadOnlySequence<byte> payload,
+            ResponseCompletionSource<TResponse> completion, CancellationToken cancellationToken)
+        {
+            foreach (var segment in payload)
+            {
+                writer.Write(segment.Span);
+                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            return await completion.ValueTask.ConfigureAwait(false);
         }
     }
 

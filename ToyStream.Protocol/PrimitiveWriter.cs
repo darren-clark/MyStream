@@ -7,7 +7,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
-using ToyStream.Shared;
+using Shared;
 
 /// <summary>
 /// A struct rather than a class: <c>IMessage.Write</c> is generic over the writer, and a reference type

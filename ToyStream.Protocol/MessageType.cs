@@ -4,6 +4,7 @@
 public enum MessageType: byte
 {
     CreateTopic = 1,
+    PublishEvent = 2,
 }
 
 /// <summary>Responses: the high bit is set.</summary>
