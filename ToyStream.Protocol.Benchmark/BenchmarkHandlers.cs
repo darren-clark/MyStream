@@ -10,7 +10,7 @@ internal readonly struct BenchmarkServerHandler
     : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
 {
     public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, CancellationToken cancellationToken) =>
+        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
         messageType switch
         {
             MessageType.CreateTopic => ConnectionHandler
@@ -30,6 +30,6 @@ internal readonly struct BenchmarkServerHandler
 internal readonly struct BenchmarkClientHandler : IConnectionHandler
 {
     public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, CancellationToken cancellationToken) =>
+        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
         ConnectionHandler.ThrowUnexpectedMessage(messageType);
 }

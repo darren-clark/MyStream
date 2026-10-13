@@ -11,18 +11,19 @@ namespace ToyStream.Server;
 /// </summary>
 public readonly struct ServerHandler(ITopicService topicService):
     IConnectionHandler,
-    IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
+    IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>,
+    IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>
 {
-    private readonly PublishEventReceiver publishReceiver = new();
-
     public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, CancellationToken cancellationToken) =>
+        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
         messageType switch
         {
             MessageType.CreateTopic => ConnectionHandler
                 .TryParseAndDispatchRequest<ServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this, writer,
                     ref reader, cancellationToken),
-            MessageType.PublishEvent => this.TryParseAndStreamPublish(ref reader),
+            MessageType.PublishEvent => ConnectionHandler
+                .TryParseAndDispatchStreamingRequest<ServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(this, writer,
+                    ref reader, body, cancellationToken),
             _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
         };
 
@@ -32,15 +33,40 @@ public readonly struct ServerHandler(ITopicService topicService):
         => ConnectionHandler.AwaitResultAndWriteAcknowledge(
             topicService.CreateTopic(message.TopicName, message.PartitionCount), responseWriter);
 
-    private DispatchResult TryParseAndStreamPublish(ref PrimitiveReader reader)
+    public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
+        ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
+        CancellationToken cancellationToken)
     {
-        if (!ConnectionHandler.TryParseRequest<PublishMessage>(ref reader, out var message, out var bytesNeeded))
+        // Resolve now: Topic is a view over a buffer the first await releases.
+        var header = message.Header;
+        var partition = topicService.GetPartition(header.Topic, header.Partition, out var failure);
+        if (partition is null)
         {
-            return DispatchResult.Insufficient(bytesNeeded);
+            // The body is left unread; the connection drains it.
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(failure));
+            return default;
         }
 
-        // Resolve now: Topic points into the buffer the pump is about to advance past.
-        var partition = topicService.GetPartition(message.Topic, message.Partition, out var failure);
-        return DispatchResult.Streaming(publishReceiver.Begin(partition, failure), message.Size);
+        return AppendAndAcknowledge(partition, message.Body, responseWriter, cancellationToken);
+    }
+
+    private static async ValueTask AppendAndAcknowledge(IPartitionWriter partition, PipeReader body,
+        ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var result = await body.ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (result.Buffer.IsEmpty)
+            {
+                break;
+            }
+
+            await partition.AppendAsync(result.Buffer, cancellationToken).ConfigureAwait(false);
+            body.AdvanceTo(result.Buffer.End);
+        }
+
+        var committed = await partition.CommitAsync(cancellationToken).ConfigureAwait(false);
+        responseWriter.WriteResponse(AcknowledgeMessage.WithResult(committed));
     }
 }

@@ -64,24 +64,61 @@ public class StreamingTests
         var (clientToServer, serverToClient) = CreatePipes();
         using var cancellation = new CancellationTokenSource();
 
-        var receiver = new RecordingReceiver();
+        var recorder = new BodyRecorder();
         var server = new Connection<StreamingServerHandler>(
-            clientToServer.Reader, serverToClient.Writer, new StreamingServerHandler(receiver));
+            clientToServer.Reader, serverToClient.Writer, new StreamingServerHandler(recorder));
         var client = new Connection<NoRequestHandler>(
             serverToClient.Reader, clientToServer.Writer, new NoRequestHandler());
 
         // Start returns only when the read loop ends, so it is deliberately not awaited here.
-        _ = server.Start(cancellation.Token);
+        var serverLoop = server.Start(cancellation.Token);
         _ = client.Start(cancellation.Token);
 
         for (var i = 0; i < 5; i++)
         {
             var body = RandomBytes(1024);
-            var response = await SendPublish(client, body, i % 2 == 0 ? body.Length : null, cancellation.Token);
+            var response = await WithServer(
+                SendPublish(client, body, i % 2 == 0 ? body.Length : null, cancellation.Token), serverLoop);
 
             Assert.That(response.Result, Is.EqualTo(PublishResult.Success), $"message {i}");
-            Assert.That(receiver.Bytes, Is.EqualTo(body), $"message {i}");
+            Assert.That(recorder.Bytes, Is.EqualTo(body), $"message {i}");
         }
+
+        await cancellation.CancelAsync();
+    }
+
+    /// <summary>
+    /// A handler is free to ignore its body - an unknown topic does exactly that - so the connection
+    /// has to consume what was left, or the next message is parsed from the middle of this one.
+    /// </summary>
+    [TestCase(2048)]
+    [TestCase(null)]
+    public async Task BodyTheHandlerNeverReadsIsDrained(int? declaredSize)
+    {
+        var (clientToServer, serverToClient) = CreatePipes();
+        using var cancellation = new CancellationTokenSource();
+
+        var recorder = new BodyRecorder { SkipBody = true };
+        var server = new Connection<StreamingServerHandler>(
+            clientToServer.Reader, serverToClient.Writer, new StreamingServerHandler(recorder));
+        var client = new Connection<NoRequestHandler>(
+            serverToClient.Reader, clientToServer.Writer, new NoRequestHandler());
+
+        var serverLoop = server.Start(cancellation.Token);
+        _ = client.Start(cancellation.Token);
+
+        var ignored = await WithServer(
+            SendPublish(client, RandomBytes(2048), declaredSize, cancellation.Token), serverLoop);
+        Assert.That(ignored.Result, Is.EqualTo(PublishResult.Success));
+        Assert.That(recorder.Bytes, Is.Empty);
+
+        // Only parses correctly if the ignored body was consumed in full.
+        recorder.SkipBody = false;
+        var next = RandomBytes(512);
+        var response = await WithServer(SendPublish(client, next, next.Length, cancellation.Token), serverLoop);
+
+        Assert.That(response.Result, Is.EqualTo(PublishResult.Success));
+        Assert.That(recorder.Bytes, Is.EqualTo(next));
 
         await cancellation.CancelAsync();
     }
@@ -93,25 +130,40 @@ public class StreamingTests
         return bytes;
     }
 
-    private static async Task<RecordingReceiver> Publish(byte[] body, long? size)
+    private static async Task<BodyRecorder> Publish(byte[] body, long? size)
     {
         var (clientToServer, serverToClient) = CreatePipes();
         using var cancellation = new CancellationTokenSource();
 
-        var receiver = new RecordingReceiver();
+        var recorder = new BodyRecorder();
         var server = new Connection<StreamingServerHandler>(
-            clientToServer.Reader, serverToClient.Writer, new StreamingServerHandler(receiver));
+            clientToServer.Reader, serverToClient.Writer, new StreamingServerHandler(recorder));
         var client = new Connection<NoRequestHandler>(
             serverToClient.Reader, clientToServer.Writer, new NoRequestHandler());
 
-        _ = server.Start(cancellation.Token);
+        var serverLoop = server.Start(cancellation.Token);
         _ = client.Start(cancellation.Token);
 
-        var response = await SendPublish(client, body, size, cancellation.Token);
+        var response = await WithServer(SendPublish(client, body, size, cancellation.Token), serverLoop);
         Assert.That(response.Result, Is.EqualTo(PublishResult.Success));
 
         await cancellation.CancelAsync();
-        return receiver;
+        return recorder;
+    }
+
+    /// <summary>
+    /// The read loop is not awaited, so a fault in it would otherwise surface as the response never
+    /// arriving rather than as the exception that caused it.
+    /// </summary>
+    private static async Task<T> WithServer<T>(ValueTask<T> response, Task serverLoop)
+    {
+        var responseTask = response.AsTask();
+        if (await Task.WhenAny(responseTask, serverLoop) == serverLoop)
+        {
+            await serverLoop;
+        }
+
+        return await responseTask;
     }
 
     private static ValueTask<AcknowledgeResponse<PublishResult>> SendPublish(Connection connection, byte[] body,
@@ -122,17 +174,20 @@ public class StreamingTests
         bodyPipe.Writer.Complete();
 
         return connection.SendStreamingMessage<PublishMessage, AcknowledgeMessage<PublishResult>, AcknowledgeResponse<PublishResult>>(
-            new PublishMessage
+            new StreamingMessage<PublishMessage>
             {
-                Topic = new Utf8String("topic"),
-                Partition = 2,
+                Header = new PublishMessage
+                {
+                    Topic = new Utf8String("topic"),
+                    Partition = 2,
+                },
                 Body = bodyPipe.Reader,
                 Size = size,
             },
             cancellationToken);
     }
 
-    private sealed class RecordingReceiver : IPayloadReceiver
+    private sealed class BodyRecorder
     {
         private readonly ArrayBufferWriter<byte> buffer = new();
 
@@ -140,51 +195,78 @@ public class StreamingTests
 
         public long? DeclaredSize { get; set; }
 
-        public ValueTask ReceiveAsync(ReadOnlySequence<byte> chunk, CancellationToken cancellationToken)
+        /// <summary>Leaves the body for the connection to drain, as an unknown topic would.</summary>
+        public bool SkipBody { get; set; }
+
+        public void Clear() => this.Bytes = [];
+
+        public async ValueTask ReadAllAsync(PipeReader body, CancellationToken cancellationToken)
         {
-            foreach (var segment in chunk)
+            while (true)
             {
-                this.buffer.Write(segment.Span);
+                var result = await body.ReadAsync(cancellationToken);
+                if (result.Buffer.IsEmpty)
+                {
+                    break;
+                }
+
+                foreach (var segment in result.Buffer)
+                {
+                    this.buffer.Write(segment.Span);
+                }
+
+                body.AdvanceTo(result.Buffer.End);
             }
 
-            return default;
-        }
-
-        public ValueTask CompleteAsync(PrimitiveWriter writer, CancellationToken cancellationToken)
-        {
             this.Bytes = this.buffer.WrittenSpan.ToArray();
             this.buffer.Clear();
-
-            new ResponseWriter<AcknowledgeMessage<PublishResult>>(writer)
-                .WriteResponse(AcknowledgeMessage.WithResult(PublishResult.Success));
-            return default;
         }
     }
 
-    private readonly struct StreamingServerHandler(RecordingReceiver receiver) : IConnectionHandler
+    private readonly struct StreamingServerHandler(BodyRecorder recorder)
+        : IConnectionHandler, IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, CancellationToken cancellationToken)
+            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken)
         {
             if (messageType != MessageType.PublishEvent)
             {
                 return ConnectionHandler.ThrowUnexpectedMessage(messageType);
             }
 
-            if (!ConnectionHandler.TryParseRequest<PublishMessage>(ref reader, out var message, out var bytesNeeded))
+            return ConnectionHandler
+                .TryParseAndDispatchStreamingRequest<StreamingServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(
+                    this, writer, ref reader, body, cancellationToken);
+        }
+
+        public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
+            ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
+            CancellationToken cancellationToken)
+        {
+            recorder.DeclaredSize = message.Size;
+            if (recorder.SkipBody)
             {
-                return DispatchResult.Insufficient(bytesNeeded);
+                recorder.Clear();
+                responseWriter.WriteResponse(AcknowledgeMessage.WithResult(PublishResult.Success));
+                return default;
             }
 
-            receiver.DeclaredSize = message.Size;
-            return DispatchResult.Streaming(receiver, message.Size);
+            return ReadAndAcknowledge(recorder, message.Body, responseWriter, cancellationToken);
+        }
+
+        private static async ValueTask ReadAndAcknowledge(BodyRecorder recorder, PipeReader body,
+            ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
+            CancellationToken cancellationToken)
+        {
+            await recorder.ReadAllAsync(body, cancellationToken);
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(PublishResult.Success));
         }
     }
 
     private readonly struct NoRequestHandler : IConnectionHandler
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, CancellationToken cancellationToken) =>
+            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
             ConnectionHandler.ThrowUnexpectedMessage(messageType);
     }
 }

@@ -77,7 +77,7 @@ public class ConnectionTests
         : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, CancellationToken cancellationToken) =>
+            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
             messageType switch
             {
                 MessageType.CreateTopic => ConnectionHandler
@@ -98,7 +98,7 @@ public class ConnectionTests
     private readonly struct ClientTestHandler : IConnectionHandler
     {
         public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, CancellationToken cancellationToken) =>
+            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
             ConnectionHandler.ThrowUnexpectedMessage(messageType);
     }
 }

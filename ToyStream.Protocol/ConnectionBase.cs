@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
+using ToyStream.Protocol.Messages;
 
 /// <summary>
 /// The outbound half, and the half that does not depend on the handler: sending requests and
@@ -33,14 +34,16 @@ public abstract class Connection(PipeWriter writer)
         return Flush(cancellationToken);
     }
     
-    public ValueTask SendStreamingMessage<TRequestMessage>(TRequestMessage requestMessage, CancellationToken cancellationToken)
+    public ValueTask SendStreamingMessage<TRequestMessage>(StreamingMessage<TRequestMessage> message,
+        CancellationToken cancellationToken)
         where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage>, allows ref struct
     {
         var primitiveWriter = new PrimitiveWriter(writer);
         primitiveWriter.Write(TRequestMessage.Type);
-        requestMessage.Write(primitiveWriter);
-        
-        return StreamMessage(requestMessage.Size, requestMessage.Body, cancellationToken);
+        message.Header.Write(primitiveWriter);
+        WriteDeclaredSize(primitiveWriter, message.Size);
+
+        return StreamMessage(message.Size, message.Body, cancellationToken);
     }
     
     
@@ -71,7 +74,7 @@ public abstract class Connection(PipeWriter writer)
     /// because a ref struct cannot be a parameter of an async method; only the copy and the wait are.
     /// </summary>
     public ValueTask<TResponse> SendStreamingMessage<TRequestMessage, TResponseMessage, TResponse>(
-        TRequestMessage requestMessage, CancellationToken cancellationToken)
+        StreamingMessage<TRequestMessage> message, CancellationToken cancellationToken)
         where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : class, IResponse<TResponseMessage, TResponse>
@@ -82,10 +85,15 @@ public abstract class Connection(PipeWriter writer)
 
         var primitiveWriter = new PrimitiveWriter(writer);
         primitiveWriter.Write(TRequestMessage.Type);
-        requestMessage.Write(primitiveWriter);
+        message.Header.Write(primitiveWriter);
+        WriteDeclaredSize(primitiveWriter, message.Size);
 
-        return StreamAndWait(requestMessage.Size, requestMessage.Body, completionSource, cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
+        return StreamAndWait(message.Size, message.Body, completionSource, cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
     }
+
+    /// <summary>Framed here rather than by each message, so no streaming message can omit it.</summary>
+    private static void WriteDeclaredSize(PrimitiveWriter writer, long? size) =>
+        writer.Write(size is { } known and >= 0 ? known : -1L);
 
 
     private ValueTask Flush(CancellationToken cancellationToken)

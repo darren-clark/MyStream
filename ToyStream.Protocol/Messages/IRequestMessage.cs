@@ -7,11 +7,8 @@ public interface IRequestMessage
     internal static abstract MessageType Type { get; }
 }
 
-public interface IStreamingRequestMessage : IRequestMessage
-{
-    public long? Size { get; }
-    public PipeReader Body { get; }
-}
+/// <summary>Marks a request whose header is followed by a streamed body on the wire.</summary>
+public interface IStreamingRequestMessage : IRequestMessage;
 
 public interface IRequestMessage<TSelf> : IMessage<TSelf>, IRequestMessage
     where TSelf : struct, IRequestMessage<TSelf>, allows ref struct;
