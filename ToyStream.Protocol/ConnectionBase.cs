@@ -5,8 +5,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
-using Messages;
-using Responses;
 
 /// <summary>
 /// The outbound half, and the half that does not depend on the handler: sending requests and
@@ -24,7 +22,28 @@ public abstract class Connection(PipeWriter writer)
     private ResponseParser? parser;
 
     protected PipeWriter Writer => writer;
-
+   
+    public ValueTask SendMessage<TRequestMessage>(TRequestMessage requestMessage, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage>, allows ref struct
+    {
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.Write(TRequestMessage.Type);
+        requestMessage.Write(primitiveWriter);
+        
+        return Flush(cancellationToken);
+    }
+    
+    public ValueTask SendStreamingMessage<TRequestMessage>(TRequestMessage requestMessage, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage>, allows ref struct
+    {
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.Write(TRequestMessage.Type);
+        requestMessage.Write(primitiveWriter);
+        
+        return StreamMessage(requestMessage.Size, requestMessage.Body, cancellationToken);
+    }
+    
+    
     public ValueTask<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(
         TRequestMessage requestMessage, CancellationToken cancellationToken)
         where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
@@ -44,15 +63,7 @@ public abstract class Connection(PipeWriter writer)
             completionSource,
             cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
 
-        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        static async ValueTask<TResponse> SendAndWait(ValueTask<FlushResult> writerTask,
-            ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
-        {
-            await writerTask.ConfigureAwait(false);
-            var result = await responseCompletion.ValueTask.ConfigureAwait(false);
-            await cancellation.DisposeAsync();
-            return result;
-        }
+
     }
 
     /// <summary>
@@ -60,8 +71,8 @@ public abstract class Connection(PipeWriter writer)
     /// because a ref struct cannot be a parameter of an async method; only the copy and the wait are.
     /// </summary>
     public ValueTask<TResponse> SendStreamingMessage<TRequestMessage, TResponseMessage, TResponse>(
-        TRequestMessage requestMessage, ReadOnlySequence<byte> payload, CancellationToken cancellationToken)
-        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+        TRequestMessage requestMessage, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : class, IResponse<TResponseMessage, TResponse>
     {
@@ -73,22 +84,141 @@ public abstract class Connection(PipeWriter writer)
         primitiveWriter.Write(TRequestMessage.Type);
         requestMessage.Write(primitiveWriter);
 
-        return StreamAndWait(writer, payload, completionSource, cancellationToken);
+        return StreamAndWait(requestMessage.Size, requestMessage.Body, completionSource, cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
+    }
 
-        static async ValueTask<TResponse> StreamAndWait(PipeWriter writer, ReadOnlySequence<byte> payload,
-            ResponseCompletionSource<TResponse> completion, CancellationToken cancellationToken)
+
+    private ValueTask Flush(CancellationToken cancellationToken)
+    {
+        var flushTask = writer.FlushAsync(cancellationToken);
+        if (!flushTask.IsCompletedSuccessfully)
         {
-            foreach (var segment in payload)
-            {
-                writer.Write(segment.Span);
-                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
+            return FlushAsync(flushTask);
+        }
 
-            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-            return await completion.ValueTask.ConfigureAwait(false);
+        // Observe the result so a faulted flush is not swallowed.
+        flushTask.GetAwaiter().GetResult();
+        return default;
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+        static async ValueTask FlushAsync(ValueTask<FlushResult> flushTask)
+        {
+            await flushTask.ConfigureAwait(false);
         }
     }
 
+    /// <summary>
+    /// Bodies are framed as length-prefixed chunks ending in a zero-length one, so a known and an
+    /// unknown size produce the same shape on the wire and the reader needs only one code path.
+    /// </summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+    private async ValueTask StreamMessage(int? size, PipeReader payload, CancellationToken cancellationToken)
+    {
+        if (size is { } known && (uint)known <= ProtocolConstants.MaxChunkSize)
+        {
+            if (known > 0)
+            {
+                WriteChunkHeader(known);
+                await CopyExactly(payload, known, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else
+        {
+            await CopyChunked(payload, cancellationToken).ConfigureAwait(false);
+        }
+
+        WriteChunkHeader(0);
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask CopyExactly(PipeReader payload, long count, CancellationToken cancellationToken)
+    {
+        while (count > 0)
+        {
+            var result = await payload.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var chunk = result.Buffer.Length <= count ? result.Buffer : result.Buffer.Slice(0, count);
+
+            if (chunk.IsEmpty)
+            {
+                if (result.IsCompleted)
+                {
+                    ThrowShortBody(count);
+                }
+
+                payload.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+                continue;
+            }
+
+            WriteSequence(chunk);
+            count -= chunk.Length;
+            payload.AdvanceTo(chunk.End);
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async ValueTask CopyChunked(PipeReader payload, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var result = await payload.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var remaining = result.Buffer;
+
+            // Clamped rather than cast: the chunk size is ours to choose, so an oversized read just
+            // becomes several chunks and no length can overflow the header.
+            while (!remaining.IsEmpty)
+            {
+                var chunk = remaining.Length <= ProtocolConstants.MaxChunkSize
+                    ? remaining
+                    : remaining.Slice(0, ProtocolConstants.MaxChunkSize);
+
+                WriteChunkHeader((int)chunk.Length);
+                WriteSequence(chunk);
+                remaining = remaining.Slice(chunk.End);
+            }
+
+            payload.AdvanceTo(result.Buffer.End);
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+            if (result.IsCompleted)
+            {
+                return;
+            }
+        }
+    }
+
+    private void WriteChunkHeader(int length)
+    {
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.Write(length);
+    }
+
+    private void WriteSequence(ReadOnlySequence<byte> value)
+    {
+        foreach (var segment in value)
+        {
+            writer.Write(segment.Span);
+        }
+    }
+
+    private async ValueTask<TResponse> StreamAndWait<TResponse>(int? size, PipeReader payload, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
+    {
+        await StreamMessage(size, payload, cancellation.Token).ConfigureAwait(false);
+        var result = await responseCompletion.ValueTask.ConfigureAwait(false);
+        await cancellation.DisposeAsync();
+        return result;
+    }
+
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private static async ValueTask<TResponse> SendAndWait<TResponse>(ValueTask<FlushResult> writerTask,
+        ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
+    {
+        await writerTask.ConfigureAwait(false);
+        var result = await responseCompletion.ValueTask.ConfigureAwait(false);
+        await cancellation.DisposeAsync();
+        return result;
+    }    
+    
     /// <summary>
     /// A response only ever answers a request this side sent, so the outstanding request picks the
     /// decoder and the type byte is checked against it rather than switched on.
@@ -122,6 +252,11 @@ public abstract class Connection(PipeWriter writer)
         connection.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
         return DispatchResult.Dispatched(default, wroteResponse: false);
     }
+
+    [DoesNotReturn]
+    [StackTraceHidden]
+    private static void ThrowShortBody(long missing) =>
+        throw new InvalidOperationException($"Body ended with {missing} bytes still declared.");
 
     [DoesNotReturn]
     [StackTraceHidden]

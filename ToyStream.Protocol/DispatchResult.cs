@@ -15,10 +15,9 @@ public readonly struct DispatchResult
 
     private DispatchResult(int bytesNeeded) => this.BytesNeeded = bytesNeeded;
 
-    private DispatchResult(long payloadLength, IPayloadReceiver receiver)
+    private DispatchResult(IPayloadReceiver receiver)
     {
         this.IsSuccess = true;
-        this.PayloadLength = payloadLength;
         this.Receiver = receiver;
     }
 
@@ -29,10 +28,8 @@ public readonly struct DispatchResult
     /// <summary>How much more is needed beyond what the reader already held.</summary>
     public int BytesNeeded { get; }
 
-    /// <summary>Non-null when the connection should pump a payload into it before reading further.</summary>
+    /// <summary>Non-null when the connection should pump a chunked body into it before reading further.</summary>
     public IPayloadReceiver? Receiver { get; }
-
-    public long PayloadLength { get; }
 
     public static DispatchResult Insufficient(int bytesNeeded) => new(bytesNeeded);
 
@@ -40,9 +37,8 @@ public readonly struct DispatchResult
         new(wroteResponse, dispatched);
 
     /// <summary>
-    /// The header is parsed and <paramref name="payloadLength"/> bytes follow. The handler consumes
-    /// nothing itself; the connection feeds the receiver and writes the response through it.
+    /// The header is parsed and a chunked body follows. The handler consumes nothing itself; the
+    /// connection feeds the receiver and writes the response through it.
     /// </summary>
-    public static DispatchResult Streaming(long payloadLength, IPayloadReceiver receiver) =>
-        new(payloadLength, receiver);
+    public static DispatchResult Streaming(IPayloadReceiver receiver) => new(receiver);
 }

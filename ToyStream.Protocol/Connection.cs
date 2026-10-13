@@ -74,8 +74,8 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                     if (dispatched.Receiver is not null)
                     {
                         // The pump advances the reader itself, so this batch ends here.
-                        await this.PumpPayload(buffer, dispatched.PayloadLength, dispatched.Receiver,
-                            cancellationToken).ConfigureAwait(false);
+                        await this.PumpPayload(buffer, dispatched.Receiver, cancellationToken)
+                            .ConfigureAwait(false);
 
                         buffer = ReadOnlySequence<byte>.Empty;
                         bytesNeeded = 1;
@@ -118,50 +118,85 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
     }
 
     /// <summary>
-    /// Feeds a payload to its receiver straight from pipe memory. Chunks are never copied, and the
-    /// reader is advanced past each one as soon as the receiver returns - so a receiver that keeps
+    /// Feeds a chunked body to its receiver straight from pipe memory, ending at the zero-length
+    /// chunk. Consumed bytes are released back to the pipe on each refill, so a receiver that keeps
     /// bytes must copy them.
     /// </summary>
-    private async ValueTask PumpPayload(ReadOnlySequence<byte> buffered, long length,
-        IPayloadReceiver receiver, CancellationToken cancellationToken)
+    private async ValueTask PumpPayload(ReadOnlySequence<byte> buffer, IPayloadReceiver receiver,
+        CancellationToken cancellationToken)
     {
-        // Spend whatever the header read already pulled in.
-        var chunk = buffered.Length <= length ? buffered : buffered.Slice(0, length);
-        if (!chunk.IsEmpty)
+        var chunkRemaining = 0L;
+
+        while (true)
         {
-            await receiver.ReceiveAsync(chunk, cancellationToken).ConfigureAwait(false);
-            length -= chunk.Length;
-        }
-
-        this.reader.AdvanceTo(chunk.End);
-
-        while (length > 0)
-        {
-            var result = await this.reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-            chunk = result.Buffer.Length <= length ? result.Buffer : result.Buffer.Slice(0, length);
-
-            if (chunk.IsEmpty)
+            if (chunkRemaining == 0)
             {
-                if (result.IsCompleted)
+                if (buffer.Length < sizeof(int))
                 {
-                    ThrowTruncatedPayload(length);
+                    buffer = await this.RefillPayload(buffer, sizeof(int), cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
                 }
 
-                this.reader.AdvanceTo(result.Buffer.Start, result.Buffer.End);
+                var headerReader = new PrimitiveReader(buffer);
+                headerReader.TryReadInt32(out var chunkLength, out _);
+                buffer = headerReader.Remaining;
+
+                if (chunkLength == 0)
+                {
+                    break;
+                }
+
+                // Unsigned so a negative length is rejected by the same comparison as an oversized one.
+                if ((uint)chunkLength > ProtocolConstants.MaxChunkSize)
+                {
+                    ThrowInvalidChunkLength(chunkLength);
+                }
+
+                chunkRemaining = chunkLength;
                 continue;
             }
 
+            if (buffer.IsEmpty)
+            {
+                buffer = await this.RefillPayload(buffer, 1, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            var chunk = buffer.Length <= chunkRemaining ? buffer : buffer.Slice(0, chunkRemaining);
             await receiver.ReceiveAsync(chunk, cancellationToken).ConfigureAwait(false);
-            length -= chunk.Length;
-            this.reader.AdvanceTo(chunk.End);
+            chunkRemaining -= chunk.Length;
+            buffer = buffer.Slice(chunk.End);
         }
 
+        this.reader.AdvanceTo(buffer.Start, buffer.End);
         await receiver.CompleteAsync(new PrimitiveWriter(this.Writer), cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Releases what the receiver has already seen, then waits for more of the body.</summary>
+    private async ValueTask<ReadOnlySequence<byte>> RefillPayload(ReadOnlySequence<byte> buffer, int minimum,
+        CancellationToken cancellationToken)
+    {
+        this.reader.AdvanceTo(buffer.Start, buffer.End);
+
+        var result = await this.reader.ReadAtLeastAsync(minimum, cancellationToken).ConfigureAwait(false);
+        if (result.IsCompleted && result.Buffer.Length < minimum)
+        {
+            ThrowTruncatedPayload(minimum - result.Buffer.Length);
+        }
+
+        return result.Buffer;
     }
 
     [DoesNotReturn]
     [StackTraceHidden]
     private static void ThrowTruncatedPayload(long missing) =>
         throw new InvalidOperationException($"Connection closed with {missing} payload bytes outstanding.");
+
+    [DoesNotReturn]
+    [StackTraceHidden]
+    private static void ThrowInvalidChunkLength(int length) =>
+        throw new InvalidOperationException(
+            $"Chunk length {length} is outside 0..{ProtocolConstants.MaxChunkSize}.");
 }

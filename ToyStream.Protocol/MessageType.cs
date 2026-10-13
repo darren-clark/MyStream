@@ -18,5 +18,11 @@ public static class ProtocolConstants
 {
     public const byte ResponseFlag = 0x80;
 
+    /// <summary>
+    /// A chunk header is four bytes taken on trust from the wire, so it is bounded: a corrupt length
+    /// fails immediately instead of consuming the following messages as payload.
+    /// </summary>
+    public const int MaxChunkSize = 1024 * 1024;
+
     public static bool IsResponse(byte messageType) => (messageType & ResponseFlag) != 0;
 }

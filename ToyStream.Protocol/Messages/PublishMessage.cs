@@ -1,17 +1,28 @@
+using System.IO.Pipelines;
 using ToyStream.Protocol.Responses;
 using ToyStream.Shared;
 
 namespace ToyStream.Protocol.Messages;
 
 /// <summary>
-/// Header only: the body follows it on the wire and is streamed to a receiver, never buffered whole.
-/// The body is the last field so the connection can hand the rest of the frame straight over.
+/// Header only. The body follows as length-prefixed chunks owned by the streaming layer, so nothing
+/// here describes its size - a sender that does not know it up front can still send one.
 /// </summary>
-public readonly ref struct PublishMessage : IRequestMessage<PublishMessage, AcknowledgeMessage<PublishResult>>
+public readonly ref struct PublishMessage
+    : IStreamingRequestMessage<PublishMessage, AcknowledgeMessage<PublishResult>>
 {
+    public PublishMessage()
+    {
+    }
+
     public required RefUtf8String Topic { get; init; }
     public required short Partition { get; init; }
-    public required long BodyLength { get; init; }
+
+    /// <summary>Send side only; a received body is streamed to a receiver instead.</summary>
+    public PipeReader Body { get; init; } = null!;
+
+    /// <summary>Lets a known-length body go out as one chunk; null streams it as it arrives.</summary>
+    public int? Size { get; init; }
 
     public static MessageType Type => MessageType.PublishEvent;
 
@@ -31,18 +42,11 @@ public readonly ref struct PublishMessage : IRequestMessage<PublishMessage, Ackn
             return false;
         }
 
-        if (!tryReader.TryReadInt64(out var bodyLength, out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-
         reader = tryReader;
         message = new PublishMessage
         {
             Topic = topic,
             Partition = partition,
-            BodyLength = bodyLength,
         };
         return true;
     }
@@ -51,7 +55,6 @@ public readonly ref struct PublishMessage : IRequestMessage<PublishMessage, Ackn
     {
         writer.Write(Topic);
         writer.Write(Partition);
-        writer.Write(BodyLength);
     }
 
     void IMessage.Write<TWriter>(TWriter writer) => Write(writer);

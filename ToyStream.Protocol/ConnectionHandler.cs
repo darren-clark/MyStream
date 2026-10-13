@@ -31,13 +31,12 @@ public static class ConnectionHandler
     }
 
     /// <summary>
-    /// Parses a request header without dispatching it, for handlers that stream a payload afterwards.
+    /// Parses a message header without dispatching it, for handlers that stream a body afterwards.
     /// The reader must be the caller's local: the message is a view over it.
     /// </summary>
-    public static bool TryParseRequest<TRequest, TResponse>(ref PrimitiveReader reader, out TRequest message,
+    public static bool TryParseRequest<TRequest>(ref PrimitiveReader reader, out TRequest message,
         out int bytesNeeded)
-        where TRequest : struct, IRequestMessage<TRequest, TResponse>, allows ref struct
-        where TResponse : struct, IResponseMessage<TResponse>, allows ref struct
+        where TRequest : struct, IMessage<TRequest>, allows ref struct
         => TRequest.TryRead(ref reader, out message, out bytesNeeded);
 
     /// <summary>

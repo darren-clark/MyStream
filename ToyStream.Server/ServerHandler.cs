@@ -34,14 +34,13 @@ public readonly struct ServerHandler(ITopicService topicService):
 
     private DispatchResult TryParseAndStreamPublish(ref PrimitiveReader reader)
     {
-        if (!ConnectionHandler.TryParseRequest<PublishMessage, AcknowledgeMessage<PublishResult>>(
-                ref reader, out var message, out var bytesNeeded))
+        if (!ConnectionHandler.TryParseRequest<PublishMessage>(ref reader, out var message, out var bytesNeeded))
         {
             return DispatchResult.Insufficient(bytesNeeded);
         }
 
         // Resolve now: Topic points into the buffer the pump is about to advance past.
         var partition = topicService.GetPartition(message.Topic, message.Partition, out var failure);
-        return DispatchResult.Streaming(message.BodyLength, publishReceiver.Begin(partition, failure));
+        return DispatchResult.Streaming(publishReceiver.Begin(partition, failure));
     }
 }
