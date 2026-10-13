@@ -74,7 +74,8 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                     if (dispatched.Receiver is not null)
                     {
                         // The pump advances the reader itself, so this batch ends here.
-                        await this.PumpPayload(buffer, dispatched.Receiver, cancellationToken)
+                        await this.PumpPayload(buffer, dispatched.Receiver, dispatched.DeclaredBodySize,
+                                cancellationToken)
                             .ConfigureAwait(false);
 
                         buffer = ReadOnlySequence<byte>.Empty;
@@ -122,10 +123,15 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
     /// chunk. Consumed bytes are released back to the pipe on each refill, so a receiver that keeps
     /// bytes must copy them.
     /// </summary>
+    /// <remarks>
+    /// The chunk framing alone decides where the body ends. A declared size is only cross-checked
+    /// against it afterwards, so a header that disagrees cannot desynchronise the stream.
+    /// </remarks>
     private async ValueTask PumpPayload(ReadOnlySequence<byte> buffer, IPayloadReceiver receiver,
-        CancellationToken cancellationToken)
+        long declaredSize, CancellationToken cancellationToken)
     {
         var chunkRemaining = 0L;
+        var delivered = 0L;
 
         while (true)
         {
@@ -166,7 +172,13 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
             var chunk = buffer.Length <= chunkRemaining ? buffer : buffer.Slice(0, chunkRemaining);
             await receiver.ReceiveAsync(chunk, cancellationToken).ConfigureAwait(false);
             chunkRemaining -= chunk.Length;
+            delivered += chunk.Length;
             buffer = buffer.Slice(chunk.End);
+        }
+
+        if (declaredSize >= 0 && delivered != declaredSize)
+        {
+            ThrowBodySizeMismatch(declaredSize, delivered);
         }
 
         this.reader.AdvanceTo(buffer.Start, buffer.End);
@@ -199,4 +211,10 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
     private static void ThrowInvalidChunkLength(int length) =>
         throw new InvalidOperationException(
             $"Chunk length {length} is outside 0..{ProtocolConstants.MaxChunkSize}.");
+
+    [DoesNotReturn]
+    [StackTraceHidden]
+    private static void ThrowBodySizeMismatch(long declared, long delivered) =>
+        throw new InvalidOperationException(
+            $"Body declared {declared} bytes but {delivered} were framed.");
 }

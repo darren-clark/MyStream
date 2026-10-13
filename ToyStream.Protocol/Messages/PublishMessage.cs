@@ -5,8 +5,9 @@ using ToyStream.Shared;
 namespace ToyStream.Protocol.Messages;
 
 /// <summary>
-/// Header only. The body follows as length-prefixed chunks owned by the streaming layer, so nothing
-/// here describes its size - a sender that does not know it up front can still send one.
+/// Header only. The body follows as length-prefixed chunks owned by the streaming layer. The header
+/// declares the total size when the sender knows it, but the chunk framing - not this - decides where
+/// the body ends, so a sender that does not know the size up front can still send one.
 /// </summary>
 public readonly ref struct PublishMessage
     : IStreamingRequestMessage<PublishMessage, AcknowledgeMessage<PublishResult>>
@@ -21,8 +22,11 @@ public readonly ref struct PublishMessage
     /// <summary>Send side only; a received body is streamed to a receiver instead.</summary>
     public PipeReader Body { get; init; } = null!;
 
-    /// <summary>Lets a known-length body go out as one chunk; null streams it as it arrives.</summary>
-    public int? Size { get; init; }
+    /// <summary>
+    /// Total body length when known, letting the receiver size its buffer up front; null streams it
+    /// as it arrives. Advisory only - it never determines where the body ends.
+    /// </summary>
+    public long? Size { get; init; }
 
     public static MessageType Type => MessageType.PublishEvent;
 
@@ -42,11 +46,18 @@ public readonly ref struct PublishMessage
             return false;
         }
 
+        if (!tryReader.TryReadInt64(out var size, out bytesToRead))
+        {
+            message = default;
+            return false;
+        }
+
         reader = tryReader;
         message = new PublishMessage
         {
             Topic = topic,
             Partition = partition,
+            Size = size < 0 ? null : size,
         };
         return true;
     }
@@ -55,6 +66,7 @@ public readonly ref struct PublishMessage
     {
         writer.Write(Topic);
         writer.Write(Partition);
+        writer.Write(Size is { } size and >= 0 ? size : -1L);
     }
 
     void IMessage.Write<TWriter>(TWriter writer) => Write(writer);

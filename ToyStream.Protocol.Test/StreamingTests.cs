@@ -18,7 +18,7 @@ public class StreamingTests
         var body = RandomBytes(bodySize);
         var received = await Publish(body, size: bodySize);
 
-        Assert.That(received, Is.EqualTo(body));
+        Assert.That(received.Bytes, Is.EqualTo(body));
     }
 
     /// <summary>Without a size the body is framed as it arrives, so the sender need not know it.</summary>
@@ -29,14 +29,22 @@ public class StreamingTests
         var body = RandomBytes(bodySize);
         var received = await Publish(body, size: null);
 
-        Assert.That(received, Is.EqualTo(body));
+        Assert.That(received.Bytes, Is.EqualTo(body));
+    }
+
+    /// <summary>The header carries the size so a receiver can size its buffer before the body arrives.</summary>
+    [Test]
+    public async Task DeclaredSizeReachesTheReceiver()
+    {
+        Assert.That((await Publish(RandomBytes(1024), size: 1024)).DeclaredSize, Is.EqualTo(1024L));
+        Assert.That((await Publish(RandomBytes(1024), size: null)).DeclaredSize, Is.Null);
     }
 
     [Test]
     public async Task EmptyBodyRoundTrips()
     {
-        Assert.That(await Publish([], size: 0), Is.Empty);
-        Assert.That(await Publish([], size: null), Is.Empty);
+        Assert.That((await Publish([], size: 0)).Bytes, Is.Empty);
+        Assert.That((await Publish([], size: null)).Bytes, Is.Empty);
     }
 
     /// <summary>A body larger than one chunk must be split and reassembled.</summary>
@@ -46,7 +54,7 @@ public class StreamingTests
         var body = RandomBytes(ProtocolConstants.MaxChunkSize + 1024);
         var received = await Publish(body, size: null);
 
-        Assert.That(received, Is.EqualTo(body));
+        Assert.That(received.Bytes, Is.EqualTo(body));
     }
 
     /// <summary>A desynchronised stream would mis-parse the following message rather than fail outright.</summary>
@@ -85,7 +93,7 @@ public class StreamingTests
         return bytes;
     }
 
-    private static async Task<byte[]> Publish(byte[] body, int? size)
+    private static async Task<RecordingReceiver> Publish(byte[] body, long? size)
     {
         var (clientToServer, serverToClient) = CreatePipes();
         using var cancellation = new CancellationTokenSource();
@@ -103,11 +111,11 @@ public class StreamingTests
         Assert.That(response.Result, Is.EqualTo(PublishResult.Success));
 
         await cancellation.CancelAsync();
-        return receiver.Bytes;
+        return receiver;
     }
 
     private static ValueTask<AcknowledgeResponse<PublishResult>> SendPublish(Connection connection, byte[] body,
-        int? size, CancellationToken cancellationToken)
+        long? size, CancellationToken cancellationToken)
     {
         var bodyPipe = new Pipe();
         bodyPipe.Writer.Write(body);
@@ -129,6 +137,8 @@ public class StreamingTests
         private readonly ArrayBufferWriter<byte> buffer = new();
 
         public byte[] Bytes { get; private set; } = [];
+
+        public long? DeclaredSize { get; set; }
 
         public ValueTask ReceiveAsync(ReadOnlySequence<byte> chunk, CancellationToken cancellationToken)
         {
@@ -161,9 +171,13 @@ public class StreamingTests
                 return ConnectionHandler.ThrowUnexpectedMessage(messageType);
             }
 
-            return ConnectionHandler.TryParseRequest<PublishMessage>(ref reader, out _, out var bytesNeeded)
-                ? DispatchResult.Streaming(receiver)
-                : DispatchResult.Insufficient(bytesNeeded);
+            if (!ConnectionHandler.TryParseRequest<PublishMessage>(ref reader, out var message, out var bytesNeeded))
+            {
+                return DispatchResult.Insufficient(bytesNeeded);
+            }
+
+            receiver.DeclaredSize = message.Size;
+            return DispatchResult.Streaming(receiver, message.Size);
         }
     }
 

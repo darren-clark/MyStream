@@ -29,7 +29,7 @@ public static class ConnectionHandler
         var responseWriter = new ResponseWriter<TResponse>(writer);
         return DispatchResult.Dispatched(handler.DispatchRequest(request, responseWriter, cancellationToken));
     }
-
+    
     /// <summary>
     /// Parses a message header without dispatching it, for handlers that stream a body afterwards.
     /// The reader must be the caller's local: the message is a view over it.

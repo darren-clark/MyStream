@@ -9,7 +9,7 @@ public interface IRequestMessage
 
 public interface IStreamingRequestMessage : IRequestMessage
 {
-    public int? Size { get; }
+    public long? Size { get; }
     public PipeReader Body { get; }
 }
 

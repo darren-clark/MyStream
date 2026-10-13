@@ -41,6 +41,6 @@ public readonly struct ServerHandler(ITopicService topicService):
 
         // Resolve now: Topic points into the buffer the pump is about to advance past.
         var partition = topicService.GetPartition(message.Topic, message.Partition, out var failure);
-        return DispatchResult.Streaming(publishReceiver.Begin(partition, failure));
+        return DispatchResult.Streaming(publishReceiver.Begin(partition, failure), message.Size);
     }
 }

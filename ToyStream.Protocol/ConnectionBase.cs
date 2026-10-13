@@ -112,13 +112,13 @@ public abstract class Connection(PipeWriter writer)
     /// unknown size produce the same shape on the wire and the reader needs only one code path.
     /// </summary>
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
-    private async ValueTask StreamMessage(int? size, PipeReader payload, CancellationToken cancellationToken)
+    private async ValueTask StreamMessage(long? size, PipeReader payload, CancellationToken cancellationToken)
     {
-        if (size is { } known && (uint)known <= ProtocolConstants.MaxChunkSize)
+        if (size is { } known && (ulong)known <= ProtocolConstants.MaxChunkSize)
         {
             if (known > 0)
             {
-                WriteChunkHeader(known);
+                WriteChunkHeader((int)known);
                 await CopyExactly(payload, known, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -200,7 +200,7 @@ public abstract class Connection(PipeWriter writer)
         }
     }
 
-    private async ValueTask<TResponse> StreamAndWait<TResponse>(int? size, PipeReader payload, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
+    private async ValueTask<TResponse> StreamAndWait<TResponse>(long? size, PipeReader payload, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
     {
         await StreamMessage(size, payload, cancellation.Token).ConfigureAwait(false);
         var result = await responseCompletion.ValueTask.ConfigureAwait(false);
