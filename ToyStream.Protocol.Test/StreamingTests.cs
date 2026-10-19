@@ -226,17 +226,15 @@ public class StreamingTests
     private readonly struct StreamingServerHandler(BodyRecorder recorder)
         : IConnectionHandler, IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>
     {
-        public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken)
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch)
         {
             if (messageType != MessageType.PublishEvent)
             {
-                return ConnectionHandler.ThrowUnexpectedMessage(messageType);
+                return dispatch.Unexpected(messageType);
             }
 
-            return ConnectionHandler
-                .TryParseAndDispatchStreamingRequest<StreamingServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(
-                    this, writer, ref reader, body, cancellationToken);
+            return dispatch
+                .StreamingRequest<StreamingServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(this);
         }
 
         public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
@@ -265,8 +263,7 @@ public class StreamingTests
 
     private readonly struct NoRequestHandler : IConnectionHandler
     {
-        public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
-            ConnectionHandler.ThrowUnexpectedMessage(messageType);
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
+            dispatch.Unexpected(messageType);
     }
 }

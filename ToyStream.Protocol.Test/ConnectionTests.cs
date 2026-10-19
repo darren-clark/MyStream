@@ -7,6 +7,8 @@ using ToyStream.Protocol.Messages;
 using ToyStream.Protocol.Responses;
 using ToyStream.Shared;
 
+using static Messages.ProtocolTestHelpers;
+
 public class ConnectionTests
 {
     private static (Pipe ClientToServer, Pipe ServerToClient) CreatePipes() => (new Pipe(), new Pipe());
@@ -132,17 +134,70 @@ public class ConnectionTests
         await cancellation.CancelAsync();
     }
 
+    /// <summary>
+    /// The read loop drains every message a single read delivered before flushing, so a pipelined
+    /// batch costs one flush. Handling them one read at a time would still answer them all, so the
+    /// flush count is what actually distinguishes the two.
+    /// </summary>
+    [Test]
+    public async Task PipelinedRequestsInOneReadCostOneFlush()
+    {
+        var (clientToServer, serverToClient) = CreatePipes();
+        using var cancellation = new CancellationTokenSource();
+        var counter = new RequestCounter(target: 3);
+
+        // Buffered before the server starts, so all three arrive in one read.
+        var writer = new PrimitiveWriter(clientToServer.Writer);
+        for (var i = 0; i < 3; i++)
+        {
+            writer.Write((byte)MessageType.CreateTopic);
+            WriteMessage(CreateTopic($"topic-{i}", 1), writer);
+        }
+
+        await clientToServer.Writer.FlushAsync(cancellation.Token);
+
+        var serverOutput = new FlushRecordingWriter(serverToClient.Writer, counter);
+        var server = new Connection<CountingServerHandler>(
+            clientToServer.Reader, serverOutput, new CountingServerHandler(counter));
+        _ = server.Start(cancellation.Token);
+
+        var dispatchedAtFirstFlush = await serverOutput.DispatchedAtFirstFlush
+            .WaitAsync(TimeSpan.FromSeconds(10), cancellation.Token);
+
+        Assert.That(dispatchedAtFirstFlush, Is.EqualTo(3), "the loop flushed before draining the batch");
+        Assert.That(counter.Count, Is.EqualTo(3));
+        await cancellation.CancelAsync();
+    }
+
+    /// <summary>A type no handler serves must fault the loop rather than be skipped as padding.</summary>
+    [Test]
+    public async Task UnexpectedMessageTypeFaultsTheReadLoop()
+    {
+        var (clientToServer, serverToClient) = CreatePipes();
+        using var cancellation = new CancellationTokenSource();
+
+        // High bit clear, so the connection routes it to the handler rather than the response path.
+        var writer = new PrimitiveWriter(clientToServer.Writer);
+        writer.Write((byte)0x7F);
+        await clientToServer.Writer.FlushAsync(cancellation.Token);
+
+        var server = new Connection<ServerTestHandler>(
+            clientToServer.Reader, serverToClient.Writer, new ServerTestHandler(new TaskCompletionSource()));
+        var readLoop = server.Start(cancellation.Token);
+
+        Assert.That(async () => await readLoop, Throws.InstanceOf<InvalidOperationException>());
+        await cancellation.CancelAsync();
+    }
+
     private readonly struct ServerTestHandler(TaskCompletionSource received)
         : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
     {
-        public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
             messageType switch
             {
-                MessageType.CreateTopic => ConnectionHandler
-                    .TryParseAndDispatchRequest<ServerTestHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(
-                        this, writer, ref reader, cancellationToken),
-                _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
+                MessageType.CreateTopic =>
+                    dispatch.Request<ServerTestHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this),
+                _ => dispatch.Unexpected(messageType)
             };
 
         public ValueTask DispatchRequest(CreateTopicMessage message,
@@ -156,8 +211,70 @@ public class ConnectionTests
 
     private readonly struct ClientTestHandler : IConnectionHandler
     {
-        public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
-            ConnectionHandler.ThrowUnexpectedMessage(messageType);
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
+            dispatch.Unexpected(messageType);
+    }
+
+    private sealed class RequestCounter(int target)
+    {
+        private readonly TaskCompletionSource reached = new();
+        private int count;
+
+        public int Count => Volatile.Read(ref this.count);
+
+        public Task Reached => this.reached.Task;
+
+        public void Record()
+        {
+            if (Interlocked.Increment(ref this.count) >= target)
+            {
+                this.reached.TrySetResult();
+            }
+        }
+    }
+
+    /// <summary>Samples the dispatch count inside the flush, so the reading cannot race the loop.</summary>
+    private sealed class FlushRecordingWriter(PipeWriter inner, RequestCounter counter) : PipeWriter
+    {
+        private readonly TaskCompletionSource<int> firstFlush = new();
+
+        public Task<int> DispatchedAtFirstFlush => this.firstFlush.Task;
+
+        public override ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)
+        {
+            this.firstFlush.TrySetResult(counter.Count);
+            return inner.FlushAsync(cancellationToken);
+        }
+
+        public override void Advance(int bytes) => inner.Advance(bytes);
+
+        public override Memory<byte> GetMemory(int sizeHint = 0) => inner.GetMemory(sizeHint);
+
+        public override Span<byte> GetSpan(int sizeHint = 0) => inner.GetSpan(sizeHint);
+
+        public override void CancelPendingFlush() => inner.CancelPendingFlush();
+
+        public override void Complete(Exception? exception = null) => inner.Complete(exception);
+    }
+
+    private readonly struct CountingServerHandler(RequestCounter counter)
+        : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
+    {
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
+            messageType switch
+            {
+                MessageType.CreateTopic =>
+                    dispatch.Request<CountingServerHandler, CreateTopicMessage,
+                        AcknowledgeMessage<CreateTopicResult>>(this),
+                _ => dispatch.Unexpected(messageType)
+            };
+
+        public ValueTask DispatchRequest(CreateTopicMessage message,
+            ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter, CancellationToken cancellationToken)
+        {
+            counter.Record();
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
+            return default;
+        }
     }
 }

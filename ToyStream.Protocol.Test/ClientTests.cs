@@ -256,17 +256,16 @@ public class ClientTests
             IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>,
             IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>
     {
-        public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-            PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
+        public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
             messageType switch
             {
-                MessageType.CreateTopic => ConnectionHandler
-                    .TryParseAndDispatchRequest<EchoingServerHandler, CreateTopicMessage,
-                        AcknowledgeMessage<CreateTopicResult>>(this, writer, ref reader, cancellationToken),
-                MessageType.PublishEvent => ConnectionHandler
-                    .TryParseAndDispatchStreamingRequest<EchoingServerHandler, PublishMessage,
-                        AcknowledgeMessage<PublishResult>>(this, writer, ref reader, body, cancellationToken),
-                _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
+                MessageType.CreateTopic =>
+                    dispatch.Request<EchoingServerHandler, CreateTopicMessage,
+                        AcknowledgeMessage<CreateTopicResult>>(this),
+                MessageType.PublishEvent =>
+                    dispatch.StreamingRequest<EchoingServerHandler, PublishMessage,
+                        AcknowledgeMessage<PublishResult>>(this),
+                _ => dispatch.Unexpected(messageType)
             };
 
         public ValueTask DispatchRequest(CreateTopicMessage message,

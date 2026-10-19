@@ -10,12 +10,9 @@ namespace ToyStream.Protocol;
 public interface IConnectionHandler
 {
     /// <summary>
-    /// The connection has already consumed the message type byte, so <paramref name="reader"/> starts at
+    /// The connection has already consumed the message type byte, so the dispatcher's reader starts at
     /// the body. On success it is left past the message; on failure the connection rewinds, so an
-    /// unsuccessful result need only report its shortfall. The writer is by value because, unlike the
-    /// reader, it carries no position for the caller to observe. The body reader is only meaningful to
-    /// message types that carry a payload, and is primed by the dispatch helper that uses it.
+    /// unsuccessful result need only report its shortfall.
     /// </summary>
-    DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken);
+    DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch);
 }

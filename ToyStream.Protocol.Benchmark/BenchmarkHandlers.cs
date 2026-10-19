@@ -11,27 +11,24 @@ using ToyStream.Protocol.Responses;
 internal readonly struct BenchmarkServerHandler
     : IConnectionHandler, IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>
 {
-    public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
+    public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
         messageType switch
         {
-            MessageType.CreateTopic => ConnectionHandler
-                .TryParseAndDispatchRequest<BenchmarkServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(
-                    this, writer, ref reader, cancellationToken),
-            _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
+            MessageType.CreateTopic =>
+                dispatch.Request<BenchmarkServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this),
+            _ => dispatch.Unexpected(messageType)
         };
 
     // Goes through AwaitResultAndWriteAcknowledge rather than writing directly, so the benchmark
     // exercises the same path as ServerHandler.
     public ValueTask DispatchRequest(CreateTopicMessage message,
         ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter, CancellationToken cancellationToken)
-        => ConnectionHandler.AwaitResultAndWriteAcknowledge(
-            new ValueTask<CreateTopicResult>(CreateTopicResult.Success), responseWriter);
+        => responseWriter.AwaitResultAndWriteAcknowledge(
+            new ValueTask<CreateTopicResult>(CreateTopicResult.Success));
 }
 
 internal readonly struct BenchmarkClientHandler : IConnectionHandler
 {
-    public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
-        ConnectionHandler.ThrowUnexpectedMessage(messageType);
+    public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
+        dispatch.Unexpected(messageType);
 }

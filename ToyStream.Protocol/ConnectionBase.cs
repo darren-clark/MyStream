@@ -22,8 +22,8 @@ public abstract class Connection(PipeWriter writer)
     }
 
     /// <summary>A static method group, so the conversion is cached rather than allocated per send.</summary>
-    private delegate DispatchResult ResponseParser(Connection connection, ResponseType responseType,
-        ref PrimitiveReader reader);
+    private delegate bool ResponseParser(Connection connection, ResponseType responseType,
+        ref PrimitiveReader reader, out int bytesNeeded);
 
     private readonly ResponseCompletionSourceCache cachedCompletionSources = new();
 
@@ -150,7 +150,7 @@ public abstract class Connection(PipeWriter writer)
         {
             completionSource = this.cachedCompletionSources.Get<TResponse>();
             this.responseCompletionSource = completionSource;
-            this.parser = ParseAndComplete<TResponseMessage, TResponse>;
+            this.parser = TryParseAndComplete<TResponseMessage, TResponse>;
 
             var primitiveWriter = new PrimitiveWriter(writer);
             primitiveWriter.Write(TRequestMessage.Type);
@@ -185,7 +185,7 @@ public abstract class Connection(PipeWriter writer)
         {
             completionSource = this.cachedCompletionSources.Get<TResponse>();
             this.responseCompletionSource = completionSource;
-            this.parser = ParseAndComplete<TResponseMessage, TResponse>;
+            this.parser = TryParseAndComplete<TResponseMessage, TResponse>;
 
             var primitiveWriter = new PrimitiveWriter(writer);
             primitiveWriter.Write(TRequestMessage.Type);
@@ -370,18 +370,18 @@ public abstract class Connection(PipeWriter writer)
     /// A response only ever answers a request this side sent, so the outstanding request picks the
     /// decoder and the type byte is checked against it rather than switched on.
     /// </summary>
-    private protected DispatchResult TryParseAndComplete(ResponseType responseType, ref PrimitiveReader reader)
+    private protected bool TryParseAndComplete(ResponseType responseType, ref PrimitiveReader reader, out int bytesNeeded)
     {
         if (this.parser is null)
         {
             ThrowUnsolicited(responseType);
         }
 
-        return this.parser(this, responseType, ref reader);
+        return this.parser(this, responseType, ref reader, out bytesNeeded);
     }
 
-    private static DispatchResult ParseAndComplete<TResponseMessage, TResponse>(Connection connection,
-        ResponseType responseType, ref PrimitiveReader reader)
+    private static bool TryParseAndComplete<TResponseMessage, TResponse>(Connection connection,
+        ResponseType responseType, ref PrimitiveReader reader, out int bytesNeeded)
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : IResponse<TResponseMessage, TResponse>
     {
@@ -390,14 +390,14 @@ public abstract class Connection(PipeWriter writer)
             ThrowWrongResponse(responseType, TResponseMessage.Type);
         }
 
-        if (!TResponseMessage.TryRead(ref reader, out var response, out var bytesNeeded))
+        if (!TResponseMessage.TryRead(ref reader, out var response, out bytesNeeded))
         {
-            return DispatchResult.Insufficient(bytesNeeded);
+            return false;
         }
 
         connection.parser = null;
         connection.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
-        return DispatchResult.Dispatched(default, wroteResponse: false);
+        return true;
     }
 
     [DoesNotReturn]

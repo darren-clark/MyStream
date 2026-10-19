@@ -60,10 +60,22 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                         break;
                     }
 
-                    var dispatched = ProtocolConstants.IsResponse(typeByte)
-                        ? this.TryParseAndComplete((ResponseType)typeByte, ref primitiveReader)
-                        : this.handler.TryParseAndDispatch((MessageType)typeByte, ref primitiveReader,
-                            new PrimitiveWriter(this.Writer), this.bodyReader, cancellationToken);
+                    if (ProtocolConstants.IsResponse(typeByte))
+                    {
+                        if (this.TryParseAndComplete((ResponseType)typeByte, ref primitiveReader, out bytesNeeded))
+                        {
+                            buffer = primitiveReader.Remaining;
+                            continue;
+                        }
+
+                        break;
+                    }
+                    
+                    // Incoming request path.
+                    var dispatch = new Dispatcher(primitiveReader, new PrimitiveWriter(this.Writer),
+                        this.bodyReader, cancellationToken);
+
+                    var dispatched = this.handler.TryParseAndDispatch((MessageType)typeByte, ref dispatch);
 
                     if (!dispatched.IsSuccess)
                     {
@@ -74,7 +86,7 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                     if (dispatched.OwnsBody)
                     {
                         // The handler may already have refilled the pipe and recycled the segments
-                        // primitiveReader points into, so the body reader's buffer is the only
+                        // the dispatch reader points into, so the body reader's buffer is the only
                         // valid one from here.
                         await dispatched.Task.ConfigureAwait(false);
                         buffer = await this.bodyReader
@@ -86,7 +98,7 @@ public sealed class Connection<THandler> : Connection where THandler : struct, I
                         break;
                     }
 
-                    buffer = primitiveReader.Remaining;
+                    buffer = dispatch.Remaining;
 
                     wroteResponse |= dispatched.WroteResponse;
                     if (!dispatched.Task.IsCompleted)

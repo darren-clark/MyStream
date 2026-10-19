@@ -9,29 +9,26 @@ namespace ToyStream.Server;
 /// Server role: its switch is exactly the request set, and implementing IRequestHandler for each arm
 /// is what makes a missing handler a compile error.
 /// </summary>
-public readonly struct ServerHandler(ITopicService topicService):
+public readonly struct ServerHandler(ITopicService topicService) :
     IConnectionHandler,
     IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>,
     IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>
 {
-    public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
+    public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
         messageType switch
         {
-            MessageType.CreateTopic => ConnectionHandler
-                .TryParseAndDispatchRequest<ServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this, writer,
-                    ref reader, cancellationToken),
-            MessageType.PublishEvent => ConnectionHandler
-                .TryParseAndDispatchStreamingRequest<ServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(this, writer,
-                    ref reader, body, cancellationToken),
-            _ => ConnectionHandler.ThrowUnexpectedMessage(messageType)
+            MessageType.CreateTopic =>
+                dispatch.Request<ServerHandler, CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>(this),
+            MessageType.PublishEvent =>
+                dispatch.StreamingRequest<ServerHandler, PublishMessage, AcknowledgeMessage<PublishResult>>(this),
+            _ => dispatch.Unexpected(messageType)
         };
 
     public ValueTask DispatchRequest(CreateTopicMessage message,
         ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter,
         CancellationToken cancellationToken)
-        => ConnectionHandler.AwaitResultAndWriteAcknowledge(
-            topicService.CreateTopic(message.TopicName, message.PartitionCount), responseWriter);
+        => responseWriter.AwaitResultAndWriteAcknowledge(
+            topicService.CreateTopic(message.TopicName, message.PartitionCount));
 
     public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
         ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,

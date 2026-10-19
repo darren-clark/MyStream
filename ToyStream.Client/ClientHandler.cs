@@ -8,7 +8,6 @@ using ToyStream.Protocol;
 /// </summary>
 public readonly struct ClientHandler : IConnectionHandler
 {
-    public DispatchResult TryParseAndDispatch(MessageType messageType, ref PrimitiveReader reader,
-        PrimitiveWriter writer, MessageBodyReader body, CancellationToken cancellationToken) =>
-        ConnectionHandler.ThrowUnexpectedMessage(messageType);
+    public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch) =>
+        dispatch.Unexpected(messageType);
 }
