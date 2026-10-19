@@ -15,7 +15,7 @@ internal sealed class ClientConnection(IClientTransport transport) : IAsyncDispo
     private Task? readLoop;
     private bool disposed;
 
-    public async ValueTask<Connection> EnsureConnected(CancellationToken cancellationToken)
+    public async ValueTask<ConnectionBase> EnsureConnected(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(this.disposed, this);
 

@@ -3,5 +3,5 @@
 public class ClientOptions
 {
     public required string Host { get; init; }
-    public required short Port { get; init; }
+    public required int Port { get; init; }
 }

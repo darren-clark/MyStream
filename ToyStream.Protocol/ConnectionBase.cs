@@ -13,16 +13,10 @@ using ToyStream.Protocol.Messages;
 /// The outbound half, and the half that does not depend on the handler: sending requests and
 /// completing the responses to them. Both roles send, so this is deliberately not role-specific.
 /// </summary>
-public abstract class Connection(PipeWriter writer)
+public abstract class ConnectionBase(PipeWriter writer)
 {
-    public static Connection Create<THandler>(PipeReader reader, PipeWriter writer, THandler handler)
-        where THandler : struct, IConnectionHandler
-    {
-        return new Connection<THandler>(reader, writer, handler);
-    }
-
     /// <summary>A static method group, so the conversion is cached rather than allocated per send.</summary>
-    private delegate bool ResponseParser(Connection connection, ResponseType responseType,
+    private delegate bool ResponseParser(ConnectionBase connectionBase, ResponseType responseType,
         ref PrimitiveReader reader, out int bytesNeeded);
 
     private readonly ResponseCompletionSourceCache cachedCompletionSources = new();
@@ -106,12 +100,12 @@ public abstract class Connection(PipeWriter writer)
     /// Curried so the result type can be named while the message type is still inferred: C# cannot
     /// infer <typeparamref name="TResult"/> from the request's constraint, and type arguments are all or none.
     /// </summary>
-    public readonly struct WithResultSender<TResult>(Connection connection) where TResult : unmanaged, Enum
+    public readonly struct WithResultSender<TResult>(ConnectionBase connectionBase) where TResult : unmanaged, Enum
     {
         public ValueTask<TResult> Send<TRequestMessage>(TRequestMessage requestMessage,
             CancellationToken cancellationToken) where TRequestMessage : struct, IRequestMessage<TRequestMessage, AcknowledgeMessage<TResult>>, allows ref struct
         {
-            var sendTask = connection.SendMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(requestMessage,
+            var sendTask = connectionBase.SendMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(requestMessage,
                 cancellationToken);
 
             return AwaitAndUnwrap(sendTask);
@@ -122,7 +116,7 @@ public abstract class Connection(PipeWriter writer)
             where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, AcknowledgeMessage<TResult>>, allows ref struct
         {
             var sendTask =
-                connection.SendStreamingMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(
+                connectionBase.SendStreamingMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(
                     message, cancellationToken);
 
             return AwaitAndUnwrap(sendTask);
@@ -227,7 +221,7 @@ public abstract class Connection(PipeWriter writer)
         return default;
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
-        static async ValueTask FlushAsync(Connection connection, ValueTask<FlushResult> flushTask)
+        static async ValueTask FlushAsync(ConnectionBase connectionBase, ValueTask<FlushResult> flushTask)
         {
             try
             {
@@ -235,7 +229,7 @@ public abstract class Connection(PipeWriter writer)
             }
             finally
             {
-                connection.EndSend();
+                connectionBase.EndSend();
             }
         }
     }
@@ -350,7 +344,7 @@ public abstract class Connection(PipeWriter writer)
 
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private static async ValueTask<TResponse> SendAndWait<TResponse>(Connection connection,
+    private static async ValueTask<TResponse> SendAndWait<TResponse>(ConnectionBase connectionBase,
         ValueTask<FlushResult> writerTask,
         ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
     {
@@ -362,7 +356,7 @@ public abstract class Connection(PipeWriter writer)
         finally
         {
             await cancellation.DisposeAsync().ConfigureAwait(false);
-            connection.EndSend();
+            connectionBase.EndSend();
         }
     }    
     
@@ -380,7 +374,7 @@ public abstract class Connection(PipeWriter writer)
         return this.parser(this, responseType, ref reader, out bytesNeeded);
     }
 
-    private static bool TryParseAndComplete<TResponseMessage, TResponse>(Connection connection,
+    private static bool TryParseAndComplete<TResponseMessage, TResponse>(ConnectionBase connectionBase,
         ResponseType responseType, ref PrimitiveReader reader, out int bytesNeeded)
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : IResponse<TResponseMessage, TResponse>
@@ -395,8 +389,8 @@ public abstract class Connection(PipeWriter writer)
             return false;
         }
 
-        connection.parser = null;
-        connection.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
+        connectionBase.parser = null;
+        connectionBase.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
         return true;
     }
 

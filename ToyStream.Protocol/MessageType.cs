@@ -1,6 +1,6 @@
 ﻿namespace ToyStream.Protocol;
 
-/// <summary>Requests: the high bit is clear, so <see cref="Connection"/> can route on the raw byte.</summary>
+/// <summary>Requests: the high bit is clear, so <see cref="ConnectionBase"/> can route on the raw byte.</summary>
 public enum MessageType: byte
 {
     CreateTopic = 1,

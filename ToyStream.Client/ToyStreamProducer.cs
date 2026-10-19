@@ -30,9 +30,9 @@ public sealed class ToyStreamProducer(IClientTransport transport) : IAsyncDispos
     }
 
     // Split out because a ref struct message cannot be built inside an async method.
-    private static ValueTask<PublishResult> SendPublish(Connection connection, string topic, short partition,
+    private static ValueTask<PublishResult> SendPublish(ConnectionBase connectionBase, string topic, short partition,
         PipeReader body, long? size, CancellationToken cancellationToken) =>
-        connection.WithResult<PublishResult>().SendStreaming(new StreamingMessage<PublishMessage>
+        connectionBase.WithResult<PublishResult>().SendStreaming(new StreamingMessage<PublishMessage>
         {
             Header = new PublishMessage
             {

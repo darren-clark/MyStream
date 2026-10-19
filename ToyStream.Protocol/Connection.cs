@@ -11,7 +11,7 @@ using System.IO.Pipelines;
 /// struct the JIT specialises this type per role, which devirtualises the dispatch call. Responses
 /// never reach the handler - the base matches them to the request that is outstanding.
 /// </summary>
-public sealed class Connection<THandler> : Connection where THandler : struct, IConnectionHandler
+public sealed class Connection<THandler> : ConnectionBase where THandler : struct, IConnectionHandler
 {
     private readonly PipeReader reader;
     private readonly MessageBodyReader bodyReader;

@@ -28,9 +28,9 @@ public sealed class ToyStreamAdminClient(IClientTransport transport) : IAsyncDis
     }
 
     // Split out because a ref struct message cannot be built inside an async method.
-    private static ValueTask<CreateTopicResult> SendCreateTopic(Connection connection, string topicName,
+    private static ValueTask<CreateTopicResult> SendCreateTopic(ConnectionBase connectionBase, string topicName,
         short partitionCount, CancellationToken cancellationToken) =>
-        connection.WithResult<CreateTopicResult>().Send(new CreateTopicMessage
+        connectionBase.WithResult<CreateTopicResult>().Send(new CreateTopicMessage
         {
             TopicName = topicName,
             PartitionCount = partitionCount

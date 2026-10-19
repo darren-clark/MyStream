@@ -24,17 +24,16 @@ public readonly struct ServerHandler(ITopicService topicService) :
             _ => dispatch.Unexpected(messageType)
         };
 
-    public ValueTask DispatchRequest(CreateTopicMessage message,
+    ValueTask IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>.DispatchRequest(CreateTopicMessage message,
         ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter,
         CancellationToken cancellationToken)
         => responseWriter.AwaitResultAndWriteAcknowledge(
             topicService.CreateTopic(message.TopicName, message.PartitionCount));
 
-    public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
+     ValueTask IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>.DispatchRequest(StreamingMessage<PublishMessage> message,
         ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
         CancellationToken cancellationToken)
     {
-        // Resolve now: Topic is a view over a buffer the first await releases.
         var header = message.Header;
         var partition = topicService.GetPartition(header.Topic, header.Partition, out var failure);
         if (partition is null)

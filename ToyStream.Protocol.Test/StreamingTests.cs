@@ -166,14 +166,14 @@ public class StreamingTests
         return await responseTask;
     }
 
-    private static ValueTask<AcknowledgeResponse<PublishResult>> SendPublish(Connection connection, byte[] body,
+    private static ValueTask<AcknowledgeResponse<PublishResult>> SendPublish(ConnectionBase connectionBase, byte[] body,
         long? size, CancellationToken cancellationToken)
     {
         var bodyPipe = new Pipe();
         bodyPipe.Writer.Write(body);
         bodyPipe.Writer.Complete();
 
-        return connection.SendStreamingMessage<PublishMessage, AcknowledgeMessage<PublishResult>, AcknowledgeResponse<PublishResult>>(
+        return connectionBase.SendStreamingMessage<PublishMessage, AcknowledgeMessage<PublishResult>, AcknowledgeResponse<PublishResult>>(
             new StreamingMessage<PublishMessage>
             {
                 Header = new PublishMessage

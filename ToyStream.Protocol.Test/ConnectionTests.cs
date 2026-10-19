@@ -9,7 +9,7 @@ using ToyStream.Shared;
 
 using static Messages.ProtocolTestHelpers;
 
-public class ConnectionTests
+public class ConnectionBaseTests
 {
     private static (Pipe ClientToServer, Pipe ServerToClient) CreatePipes() => (new Pipe(), new Pipe());
 

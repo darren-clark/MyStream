@@ -4,7 +4,7 @@ namespace ToyStream.Protocol;
 
 /// <summary>
 /// One role's half of the protocol: the switch over the message types that role serves, plus the
-/// handlers for them. Implemented by a struct so <see cref="Connection{THandler}"/> specialises per
+/// handlers for them. Implemented by a struct so <see cref="ConnectionBase{THandler}"/> specialises per
 /// role and the dispatch call devirtualises.
 /// </summary>
 public interface IConnectionHandler
