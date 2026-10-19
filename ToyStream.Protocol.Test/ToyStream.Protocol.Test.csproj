@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\ToyStream.Protocol\ToyStream.Protocol.csproj" />
+      <ProjectReference Include="..\ToyStream.Client\ToyStream.Client.csproj" />
     </ItemGroup>
 
 </Project>

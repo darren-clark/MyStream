@@ -1,5 +1,6 @@
 namespace ToyStream.Server;
 
-public class ITopicPartition
+public interface ITopicPartition
 {
+    void AddConsumer();
 }

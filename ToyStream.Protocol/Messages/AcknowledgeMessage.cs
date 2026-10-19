@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace ToyStream.Protocol.Messages;
+﻿namespace ToyStream.Protocol.Messages;
 
 public readonly ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessage>
 {

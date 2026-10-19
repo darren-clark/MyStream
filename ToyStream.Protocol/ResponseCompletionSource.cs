@@ -16,7 +16,7 @@ internal abstract class ResponseCompletionSource
     public abstract void Reset();
 }
 
-internal sealed class ResponseCompletionSource<T> : ResponseCompletionSource, IValueTaskSource<T> where T : class
+internal sealed class ResponseCompletionSource<T> : ResponseCompletionSource, IValueTaskSource<T>
 {
     // Mutable struct: must stay a field and never be copied.
     private ManualResetValueTaskSourceCore<T> core = new() { RunContinuationsAsynchronously = false };
@@ -60,7 +60,7 @@ internal sealed class ResponseCompletionSourceCache
 {
     private readonly Dictionary<Type, ResponseCompletionSource> sources = new();
 
-    public ResponseCompletionSource<T> Get<T>() where T : class
+    public ResponseCompletionSource<T> Get<T>()
     {
         if (this.sources.TryGetValue(typeof(T), out var source))
         {

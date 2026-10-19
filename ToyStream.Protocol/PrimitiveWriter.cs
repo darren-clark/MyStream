@@ -76,11 +76,16 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
         }
     }
 
+    /// <summary>Transcodes UTF-16 source straight into the output buffer, so no scratch buffer is needed.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(RefUtf8String value)
     {
-        this.Write(value.Length);
-        this.Write(value.Sequence);
+        var byteCount = value.GetByteCount();
+        this.Write((short) byteCount);
+
+        var span = writer.GetSpan(byteCount);
+        Debug.Assert(span.Length >= byteCount, "GetSpan must honour the size hint");
+        writer.Advance(value.CopyTo(span));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

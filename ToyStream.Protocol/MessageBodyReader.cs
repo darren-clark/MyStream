@@ -87,6 +87,13 @@ public sealed class MessageBodyReader(PipeReader inner) : PipeReader
     /// </summary>
     public override void AdvanceTo(SequencePosition consumed, SequencePosition examined)
     {
+        // The canonical pipe loop advances past the final result too, but that one is empty and its
+        // positions are not ours: slicing by them would corrupt what the connection reads next.
+        if (this.finished)
+        {
+            return;
+        }
+
         var consumedLength = this.buffer.Slice(this.buffer.Start, consumed).Length;
         this.chunkRemaining -= consumedLength;
         this.delivered += consumedLength;

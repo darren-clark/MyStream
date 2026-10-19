@@ -1,6 +1,5 @@
 namespace ToyStream.Client;
 
-using System.IO.Pipelines;
 using ToyStream.Protocol;
 
 /// <summary>

@@ -1,3 +1,5 @@
+using ToyStream.Server;
+
 namespace ToyStream.Protocol.Benchmark;
 
 using System.Buffers;

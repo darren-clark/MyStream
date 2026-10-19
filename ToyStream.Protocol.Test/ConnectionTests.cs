@@ -1,3 +1,5 @@
+using ToyStream.Server;
+
 namespace ToyStream.Protocol.Test;
 
 using System.IO.Pipelines;
@@ -70,6 +72,63 @@ public class ConnectionTests
         }
 
         await firstRequest.Task;
+        await cancellation.CancelAsync();
+    }
+
+    /// <summary>
+    /// The response slot and the writer are single-occupancy, so a second send must fail loudly
+    /// rather than overwrite the pending completion and hang the first caller.
+    /// </summary>
+    [Test]
+    public async Task SecondSendWhileOneIsPendingThrows()
+    {
+        var (clientToServer, serverToClient) = CreatePipes();
+        using var cancellation = new CancellationTokenSource();
+
+        var client = new Connection<ClientTestHandler>(
+            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler());
+        _ = client.Start(cancellation.Token);
+
+        var send = client.WithResult<CreateTopicResult>().Send(CreateTopic("first", 1), default);
+        Assert.That(send.IsCompleted, Is.False);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            _ = client.WithResult<CreateTopicResult>().Send(CreateTopic("second", 1), default));
+
+        // The first request is untouched by the rejected one.
+        var serverWriter = new PrimitiveWriter(serverToClient.Writer);
+        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverWriter)
+            .WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
+        await serverToClient.Writer.FlushAsync(cancellation.Token);
+
+        Assert.That(await send, Is.EqualTo(CreateTopicResult.Success));
+        await cancellation.CancelAsync();
+    }
+
+    /// <summary>The guard must release on every path, or one cancelled request wedges the connection.</summary>
+    [Test]
+    public async Task CancelledSendReleasesTheConnectionForReuse()
+    {
+        var (clientToServer, serverToClient) = CreatePipes();
+        using var cancellation = new CancellationTokenSource();
+
+        var server = new Connection<ServerTestHandler>(
+            clientToServer.Reader, serverToClient.Writer, new ServerTestHandler(new TaskCompletionSource()));
+        var client = new Connection<ClientTestHandler>(
+            serverToClient.Reader, clientToServer.Writer, new ClientTestHandler());
+
+        _ = client.Start(cancellation.Token);
+
+        using var requestCancellation = new CancellationTokenSource();
+        var send = client.WithResult<CreateTopicResult>().Send(CreateTopic("abandoned", 1), requestCancellation.Token);
+        await requestCancellation.CancelAsync();
+        Assert.That(async () => await send, Throws.InstanceOf<OperationCanceledException>());
+
+        // Only now start the peer, so the abandoned request is answered after it was cancelled.
+        _ = server.Start(cancellation.Token);
+
+        var result = await client.WithResult<CreateTopicResult>().Send(CreateTopic("next", 1), cancellation.Token);
+        Assert.That(result, Is.EqualTo(CreateTopicResult.Success));
         await cancellation.CancelAsync();
     }
 

@@ -1,4 +1,6 @@
-﻿namespace ToyStream.Protocol;
+﻿using ToyStream.Protocol.Responses;
+
+namespace ToyStream.Protocol;
 
 using System.Buffers;
 using System.Diagnostics;
@@ -13,6 +15,12 @@ using ToyStream.Protocol.Messages;
 /// </summary>
 public abstract class Connection(PipeWriter writer)
 {
+    public static Connection Create<THandler>(PipeReader reader, PipeWriter writer, THandler handler)
+        where THandler : struct, IConnectionHandler
+    {
+        return new Connection<THandler>(reader, writer, handler);
+    }
+
     /// <summary>A static method group, so the conversion is cached rather than allocated per send.</summary>
     private delegate DispatchResult ResponseParser(Connection connection, ResponseType responseType,
         ref PrimitiveReader reader);
@@ -22,15 +30,41 @@ public abstract class Connection(PipeWriter writer)
     private ResponseCompletionSource? responseCompletionSource;
     private ResponseParser? parser;
 
+    /// <summary>
+    /// Both the writer and the response slot are single-occupancy, so an overlapping send would
+    /// interleave bytes on the wire and overwrite the pending completion. Interlocked rather than a
+    /// plain field because the whole point is to catch a caller on another thread.
+    /// </summary>
+    private int sendInFlight;
+
     protected PipeWriter Writer => writer;
-   
+
+    private void BeginSend()
+    {
+        if (Interlocked.Exchange(ref this.sendInFlight, 1) != 0)
+        {
+            ThrowConcurrentSend();
+        }
+    }
+
+    private void EndSend() => Volatile.Write(ref this.sendInFlight, 0);
+
     public ValueTask SendMessage<TRequestMessage>(TRequestMessage requestMessage, CancellationToken cancellationToken)
         where TRequestMessage : struct, IRequestMessage<TRequestMessage>, allows ref struct
     {
-        var primitiveWriter = new PrimitiveWriter(writer);
-        primitiveWriter.Write(TRequestMessage.Type);
-        requestMessage.Write(primitiveWriter);
-        
+        BeginSend();
+        try
+        {
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            requestMessage.Write(primitiveWriter);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
+
         return Flush(cancellationToken);
     }
     
@@ -38,35 +72,101 @@ public abstract class Connection(PipeWriter writer)
         CancellationToken cancellationToken)
         where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage>, allows ref struct
     {
-        var primitiveWriter = new PrimitiveWriter(writer);
-        primitiveWriter.Write(TRequestMessage.Type);
-        message.Header.Write(primitiveWriter);
-        WriteDeclaredSize(primitiveWriter, message.Size);
+        BeginSend();
+        try
+        {
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            message.Header.Write(primitiveWriter);
+            WriteDeclaredSize(primitiveWriter, message.Size);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
 
-        return StreamMessage(message.Size, message.Body, cancellationToken);
+        return StreamAndRelease(message.Size, message.Body, cancellationToken);
     }
-    
-    
+
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+    private async ValueTask StreamAndRelease(long? size, PipeReader payload, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await StreamMessage(size, payload, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            EndSend();
+        }
+    }
+
+    /// <summary>
+    /// Curried so the result type can be named while the message type is still inferred: C# cannot
+    /// infer <typeparamref name="TResult"/> from the request's constraint, and type arguments are all or none.
+    /// </summary>
+    public readonly struct WithResultSender<TResult>(Connection connection) where TResult : unmanaged, Enum
+    {
+        public ValueTask<TResult> Send<TRequestMessage>(TRequestMessage requestMessage,
+            CancellationToken cancellationToken) where TRequestMessage : struct, IRequestMessage<TRequestMessage, AcknowledgeMessage<TResult>>, allows ref struct
+        {
+            var sendTask = connection.SendMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(requestMessage,
+                cancellationToken);
+
+            return AwaitAndUnwrap(sendTask);
+        }
+
+        public ValueTask<TResult> SendStreaming<TRequestMessage>(StreamingMessage<TRequestMessage> message,
+            CancellationToken cancellationToken)
+            where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, AcknowledgeMessage<TResult>>, allows ref struct
+        {
+            var sendTask =
+                connection.SendStreamingMessage<TRequestMessage, AcknowledgeMessage<TResult>, AcknowledgeResponse<TResult>>(
+                    message, cancellationToken);
+
+            return AwaitAndUnwrap(sendTask);
+        }
+
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+        private static async ValueTask<TResult> AwaitAndUnwrap(ValueTask<AcknowledgeResponse<TResult>> sendTask)
+        {
+            var response = await sendTask.ConfigureAwait(false);
+            return response.Result;
+        }
+    }
+
+    public WithResultSender<TResult> WithResult<TResult>() where TResult : unmanaged, Enum => new(this);
+
     public ValueTask<TResponse> SendMessage<TRequestMessage, TResponseMessage, TResponse>(
         TRequestMessage requestMessage, CancellationToken cancellationToken)
         where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-        where TResponse : class, IResponse<TResponseMessage, TResponse>
+        where TResponse : IResponse<TResponseMessage, TResponse>
     {
-        var completionSource = this.cachedCompletionSources.Get<TResponse>();
-        this.responseCompletionSource = completionSource;
-        this.parser = ParseAndComplete<TResponseMessage, TResponse>;
+        BeginSend();
+        ResponseCompletionSource<TResponse> completionSource;
+        try
+        {
+            completionSource = this.cachedCompletionSources.Get<TResponse>();
+            this.responseCompletionSource = completionSource;
+            this.parser = ParseAndComplete<TResponseMessage, TResponse>;
 
-        var primitiveWriter = new PrimitiveWriter(writer);
-        primitiveWriter.Write(TRequestMessage.Type);
-        requestMessage.Write(primitiveWriter);
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            requestMessage.Write(primitiveWriter);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
 
         return SendAndWait(
+            this,
             writer.FlushAsync(cancellationToken),
             completionSource,
             cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
-
-
     }
 
     /// <summary>
@@ -79,14 +179,24 @@ public abstract class Connection(PipeWriter writer)
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : class, IResponse<TResponseMessage, TResponse>
     {
-        var completionSource = this.cachedCompletionSources.Get<TResponse>();
-        this.responseCompletionSource = completionSource;
-        this.parser = ParseAndComplete<TResponseMessage, TResponse>;
+        BeginSend();
+        ResponseCompletionSource<TResponse> completionSource;
+        try
+        {
+            completionSource = this.cachedCompletionSources.Get<TResponse>();
+            this.responseCompletionSource = completionSource;
+            this.parser = ParseAndComplete<TResponseMessage, TResponse>;
 
-        var primitiveWriter = new PrimitiveWriter(writer);
-        primitiveWriter.Write(TRequestMessage.Type);
-        message.Header.Write(primitiveWriter);
-        WriteDeclaredSize(primitiveWriter, message.Size);
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            message.Header.Write(primitiveWriter);
+            WriteDeclaredSize(primitiveWriter, message.Size);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
 
         return StreamAndWait(message.Size, message.Body, completionSource, cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
     }
@@ -101,17 +211,32 @@ public abstract class Connection(PipeWriter writer)
         var flushTask = writer.FlushAsync(cancellationToken);
         if (!flushTask.IsCompletedSuccessfully)
         {
-            return FlushAsync(flushTask);
+            return FlushAsync(this, flushTask);
         }
 
-        // Observe the result so a faulted flush is not swallowed.
-        flushTask.GetAwaiter().GetResult();
+        try
+        {
+            // Observe the result so a faulted flush is not swallowed.
+            flushTask.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            EndSend();
+        }
+
         return default;
 
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
-        static async ValueTask FlushAsync(ValueTask<FlushResult> flushTask)
+        static async ValueTask FlushAsync(Connection connection, ValueTask<FlushResult> flushTask)
         {
-            await flushTask.ConfigureAwait(false);
+            try
+            {
+                await flushTask.ConfigureAwait(false);
+            }
+            finally
+            {
+                connection.EndSend();
+            }
         }
     }
 
@@ -210,21 +335,35 @@ public abstract class Connection(PipeWriter writer)
 
     private async ValueTask<TResponse> StreamAndWait<TResponse>(long? size, PipeReader payload, ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
     {
-        await StreamMessage(size, payload, cancellation.Token).ConfigureAwait(false);
-        var result = await responseCompletion.ValueTask.ConfigureAwait(false);
-        await cancellation.DisposeAsync();
-        return result;
+        try
+        {
+            await StreamMessage(size, payload, cancellation.Token).ConfigureAwait(false);
+            return await responseCompletion.ValueTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            // In the finally so a cancelled or faulted request does not leak the registration.
+            await cancellation.DisposeAsync().ConfigureAwait(false);
+            EndSend();
+        }
     }
 
 
     [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-    private static async ValueTask<TResponse> SendAndWait<TResponse>(ValueTask<FlushResult> writerTask,
-        ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation) where TResponse : class
+    private static async ValueTask<TResponse> SendAndWait<TResponse>(Connection connection,
+        ValueTask<FlushResult> writerTask,
+        ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
     {
-        await writerTask.ConfigureAwait(false);
-        var result = await responseCompletion.ValueTask.ConfigureAwait(false);
-        await cancellation.DisposeAsync();
-        return result;
+        try
+        {
+            await writerTask.ConfigureAwait(false);
+            return await responseCompletion.ValueTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            await cancellation.DisposeAsync().ConfigureAwait(false);
+            connection.EndSend();
+        }
     }    
     
     /// <summary>
@@ -244,7 +383,7 @@ public abstract class Connection(PipeWriter writer)
     private static DispatchResult ParseAndComplete<TResponseMessage, TResponse>(Connection connection,
         ResponseType responseType, ref PrimitiveReader reader)
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
-        where TResponse : class, IResponse<TResponseMessage, TResponse>
+        where TResponse : IResponse<TResponseMessage, TResponse>
     {
         if (responseType != TResponseMessage.Type)
         {
@@ -260,6 +399,12 @@ public abstract class Connection(PipeWriter writer)
         connection.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
         return DispatchResult.Dispatched(default, wroteResponse: false);
     }
+
+    [DoesNotReturn]
+    [StackTraceHidden]
+    private static void ThrowConcurrentSend() =>
+        throw new InvalidOperationException(
+            "A send is already in flight. Connection supports one outstanding request and is not safe for concurrent use.");
 
     [DoesNotReturn]
     [StackTraceHidden]
