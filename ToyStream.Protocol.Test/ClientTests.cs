@@ -132,6 +132,47 @@ public class ClientTests
         Assert.That(transport.Published.Bytes, Is.EqualTo(body));
     }
 
+    /// <summary>The key rides in the header, so it must arrive intact alongside a streamed body.</summary>
+    [TestCase(1)]
+    [TestCase(ProtocolConstants.MaxKeySize)]
+    public async Task ProducerPublishesKeyWithBody(int keySize)
+    {
+        await using var transport = new InMemoryTransport();
+        await using var producer = new ToyStreamProducer(transport);
+
+        var key = RandomBytes(keySize);
+        var body = RandomBytes(4096);
+
+        Assert.That(await producer.Publish("events", 0, key, BodyReader(body), body.Length),
+            Is.EqualTo(PublishResult.Success));
+        Assert.That(transport.Published.Key, Is.EqualTo(key));
+        Assert.That(transport.Published.Bytes, Is.EqualTo(body));
+    }
+
+    [Test]
+    public async Task ProducerPublishesWithoutAKey()
+    {
+        await using var transport = new InMemoryTransport();
+        await using var producer = new ToyStreamProducer(transport);
+
+        var body = RandomBytes(64);
+        Assert.That(await producer.Publish("events", 0, BodyReader(body), body.Length),
+            Is.EqualTo(PublishResult.Success));
+        Assert.That(transport.Published.Key, Is.Empty);
+    }
+
+    /// <summary>Bounded so a key can never become a second unbounded stream.</summary>
+    [Test]
+    public async Task ProducerRejectsAnOversizedKey()
+    {
+        await using var transport = new InMemoryTransport();
+        await using var producer = new ToyStreamProducer(transport);
+
+        var key = RandomBytes(ProtocolConstants.MaxKeySize + 1);
+        Assert.That(async () => await producer.Publish("events", 0, key, BodyReader(RandomBytes(16)), 16),
+            Throws.InstanceOf<InvalidOperationException>());
+    }
+
     /// <summary>
     /// The roles are separate precisely so a streamed publish cannot hold the connection against an
     /// admin request, which the single-flight guard would otherwise reject.
@@ -228,6 +269,8 @@ public class ClientTests
     {
         public byte[] Bytes { get; private set; } = [];
 
+        public byte[] Key { get; set; } = [];
+
         /// <summary>Deliberately the canonical pipe loop, so the body reader must tolerate it.</summary>
         public async ValueTask ReadAll(PipeReader body, CancellationToken cancellationToken)
         {
@@ -276,8 +319,12 @@ public class ClientTests
         }
 
         public ValueTask DispatchRequest(StreamingMessage<PublishMessage> message,
-            ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter, CancellationToken cancellationToken) =>
-            ReadAndAcknowledge(published, message.Body, responseWriter, cancellationToken);
+            ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter, CancellationToken cancellationToken)
+        {
+            // Resolved now: the key is a view over a buffer the first await releases.
+            published.Key = message.Header.Key.ToArray();
+            return ReadAndAcknowledge(published, message.Body, responseWriter, cancellationToken);
+        }
 
         private static async ValueTask ReadAndAcknowledge(BodySink sink, PipeReader body,
             ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter, CancellationToken cancellationToken)

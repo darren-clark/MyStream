@@ -4,6 +4,7 @@ using System.IO.Pipelines;
 using ToyStream.Protocol;
 using ToyStream.Protocol.Messages;
 using ToyStream.Protocol.Responses;
+using ToyStream.Shared;
 
 /// <summary>
 /// Publishes event bodies. Holds its own connection because a streamed publish occupies the
@@ -26,18 +27,32 @@ public sealed class ToyStreamProducer(IClientTransport transport) : IAsyncDispos
         long? size = null, CancellationToken cancellationToken = default)
     {
         var connected = await this.connection.EnsureConnected(cancellationToken).ConfigureAwait(false);
-        return await SendPublish(connected, topic, partition, body, size, cancellationToken).ConfigureAwait(false);
+        return await SendPublish(connected, topic, partition, default, body, size, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The key is carried for the consumer, not used for routing: the partition is chosen here, so
+    /// the server never has to hash it.
+    /// </summary>
+    public async ValueTask<PublishResult> Publish(string topic, short partition, ReadOnlyMemory<byte> key,
+        PipeReader body, long? size = null, CancellationToken cancellationToken = default)
+    {
+        var connected = await this.connection.EnsureConnected(cancellationToken).ConfigureAwait(false);
+        return await SendPublish(connected, topic, partition, key, body, size, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     // Split out because a ref struct message cannot be built inside an async method.
     private static ValueTask<PublishResult> SendPublish(ConnectionBase connectionBase, string topic, short partition,
-        PipeReader body, long? size, CancellationToken cancellationToken) =>
+        ReadOnlyMemory<byte> key, PipeReader body, long? size, CancellationToken cancellationToken) =>
         connectionBase.WithResult<PublishResult>().SendStreaming(new StreamingMessage<PublishMessage>
         {
             Header = new PublishMessage
             {
                 Topic = topic,
-                Partition = partition
+                Partition = partition,
+                Key = new RefBytes(key.Span)
             },
             Size = size,
             Body = body

@@ -13,6 +13,13 @@ public readonly ref struct PublishMessage
     public required RefUtf8String Topic { get; init; }
     public required short Partition { get; init; }
 
+    /// <summary>
+    /// Opaque to the protocol: the sender picks the partition, so this is carried for the consumer
+    /// rather than used for routing. Bounded, and read before the body so it never becomes a second
+    /// stream.
+    /// </summary>
+    public RefBytes Key { get; init; }
+
     public static MessageType Type => MessageType.PublishEvent;
 
     static bool IMessage<PublishMessage>.TryRead<TReader>(ref TReader reader, out PublishMessage message,
@@ -31,11 +38,18 @@ public readonly ref struct PublishMessage
             return false;
         }
 
+        if (!tryReader.TryReadBytes(ProtocolConstants.MaxKeySize, out var key, out bytesToRead))
+        {
+            message = default;
+            return false;
+        }
+
         reader = tryReader;
         message = new PublishMessage
         {
             Topic = topic,
             Partition = partition,
+            Key = key,
         };
         return true;
     }
@@ -44,6 +58,7 @@ public readonly ref struct PublishMessage
     {
         writer.Write(Topic);
         writer.Write(Partition);
+        writer.Write(Key, ProtocolConstants.MaxKeySize);
     }
 
     void IMessage.Write<TWriter>(TWriter writer) => Write(writer);

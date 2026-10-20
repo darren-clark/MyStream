@@ -81,10 +81,34 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
     public void Write(RefUtf8String value)
     {
         var byteCount = value.GetByteCount();
+
+        // The length goes on the wire as a short, so an oversized string would wrap to negative.
+        if ((uint)byteCount > ProtocolConstants.MaxStringSize)
+        {
+            ThrowHelpers.ThrowInvalidLength(byteCount, ProtocolConstants.MaxStringSize);
+        }
+
         this.Write((short) byteCount);
 
         var span = writer.GetSpan(byteCount);
         Debug.Assert(span.Length >= byteCount, "GetSpan must honour the size hint");
+        writer.Advance(value.CopyTo(span));
+    }
+
+    /// <summary>A length-prefixed run of opaque bytes, bounded by the caller's limit.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Write(RefBytes value, int maximum)
+    {
+        var length = value.Length;
+        if ((uint)length > (uint)maximum)
+        {
+            ThrowHelpers.ThrowInvalidLength(length, maximum);
+        }
+
+        this.Write(length);
+
+        var span = writer.GetSpan(length);
+        Debug.Assert(span.Length >= length, "GetSpan must honour the size hint");
         writer.Advance(value.CopyTo(span));
     }
 

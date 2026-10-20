@@ -88,6 +88,12 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
             return false;
         }
 
+        // Unsigned so a negative length is rejected by the same comparison as an oversized one.
+        if ((uint)length > ProtocolConstants.MaxStringSize)
+        {
+            ThrowHelpers.ThrowInvalidLength(length, ProtocolConstants.MaxStringSize);
+        }
+
         if (reader.Remaining < length)
         {
             value = default;
@@ -119,6 +125,36 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
         return true;
     }
     
+    /// <summary>A length-prefixed run of opaque bytes, bounded by the caller's limit.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadBytes(int maximum, out RefBytes value, out int bytesToRead)
+    {
+        if (!TryReadInt32(out var length, out bytesToRead))
+        {
+            value = default;
+            return false;
+        }
+
+        // Unsigned so a negative length is rejected by the same comparison as an oversized one.
+        if ((uint)length > (uint)maximum)
+        {
+            ThrowHelpers.ThrowInvalidLength(length, maximum);
+        }
+
+        if (reader.Remaining < length)
+        {
+            value = default;
+            bytesToRead = (int)(length - reader.Remaining);
+            return false;
+        }
+
+        var read = this.reader.TryReadExact(length, out var buffer);
+        Debug.Assert(read);
+        value = new RefBytes(buffer);
+        bytesToRead = 0;
+        return true;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadEnum<T>(out T value, out int bytesToRead) where T : unmanaged, Enum
     {

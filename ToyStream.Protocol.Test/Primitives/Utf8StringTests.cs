@@ -48,6 +48,27 @@ public class Utf8StringTests
         Assert.That(bytesToRead, Is.EqualTo(4));
     }
 
+    /// <summary>
+    /// The length is taken on trust from the wire, and the reader slices by it, so a negative one
+    /// must be rejected rather than reaching SequenceReader.
+    /// </summary>
+    [TestCase((short)-1)]
+    [TestCase(short.MinValue)]
+    public void TestReceive_NegativeLengthIsRejected(short length)
+    {
+        GetReadBuffer(out var buffer, out var reader);
+        BinaryPrimitives.WriteInt16BigEndian(buffer, length);
+
+        try
+        {
+            reader.TryReadUtf8String(out _, out _);
+            Assert.Fail("a negative length was accepted");
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     [Test]
     public void TestReceive_Complete()
     {
