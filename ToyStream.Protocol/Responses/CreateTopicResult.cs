@@ -1,11 +1,8 @@
-using ToyStream.Protocol;
-using ToyStream.Protocol.Messages;
-
-namespace ToyStream.Server;
-
+namespace ToyStream.Protocol.Responses;
 
 public enum CreateTopicResult
 {
     Success,
-    DuplicateTopic
+    DuplicateTopic,
+    InvalidPartitionCount
 }

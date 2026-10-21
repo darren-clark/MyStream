@@ -5,6 +5,8 @@ public enum MessageType: byte
 {
     CreateTopic = 1,
     PublishEvent = 2,
+    Subscribe = 3,
+    DescribeTopic = 4
 }
 
 /// <summary>Responses: the high bit is set.</summary>
@@ -12,6 +14,8 @@ public enum ResponseType: byte
 {
     Acknowledge = ProtocolConstants.ResponseFlag,
     AcknowledgeWithResult = ProtocolConstants.ResponseFlag | 1,
+    DescribeTopic = ProtocolConstants.ResponseFlag | 2,
+    Subscribe = ProtocolConstants.ResponseFlag | 3,
 }
 
 public static class ProtocolConstants
@@ -35,6 +39,12 @@ public static class ProtocolConstants
     /// capped small enough that a receiver can flatten one onto the stack.
     /// </summary>
     public const int MaxKeySize = 1024;
+
+    /// <summary>
+    /// A describe response carries one fixed size record per partition, so the count is bounded:
+    /// it decides how much a receiver reads, and how much it may flatten onto the stack.
+    /// </summary>
+    public const int MaxPartitions = 1024;
 
     public static bool IsResponse(byte messageType) => (messageType & ResponseFlag) != 0;
 }

@@ -155,6 +155,23 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
         return true;
     }
 
+    /// <summary>A run of bytes whose length the caller already knows, left as a view over the buffer.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadExact(int length, out ReadOnlySequence<byte> value, out int bytesToRead)
+    {
+        if (reader.Remaining < length)
+        {
+            value = default;
+            bytesToRead = (int)(length - reader.Remaining);
+            return false;
+        }
+
+        var read = this.reader.TryReadExact(length, out value);
+        Debug.Assert(read);
+        bytesToRead = 0;
+        return true;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadEnum<T>(out T value, out int bytesToRead) where T : unmanaged, Enum
     {

@@ -2,7 +2,7 @@ namespace ToyStream.Client;
 
 using ToyStream.Protocol;
 using ToyStream.Protocol.Messages;
-using ToyStream.Server;
+using ToyStream.Protocol.Responses;
 
 /// <summary>
 /// Topic administration. Separate from the producer because its connection is typically short

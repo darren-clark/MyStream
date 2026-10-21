@@ -1,5 +1,4 @@
 using System.IO.Pipelines;
-using ToyStream.Protocol.Responses;
 
 namespace ToyStream.Server;
 
@@ -7,5 +6,6 @@ namespace ToyStream.Server;
 // since that takes ref struct args.
 public interface IEventWriter
 {
-    ValueTask<PublishResult> WriteEvent(PipeReader input, CancellationToken cancellationToken);
+    /// <summary>Returns nothing because storage has no failure to report that is not an exception.</summary>
+    ValueTask WriteEvent(PipeReader input, CancellationToken cancellationToken);
 }

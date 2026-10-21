@@ -26,19 +26,9 @@ public readonly ref struct PublishMessage
         out int bytesToRead)
     {
         var tryReader = reader;
-        if (!tryReader.TryReadUtf8String(out var topic, out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-
-        if (!tryReader.TryReadInt16(out var partition, out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-
-        if (!tryReader.TryReadBytes(ProtocolConstants.MaxKeySize, out var key, out bytesToRead))
+        if (!tryReader.TryReadUtf8String(out var topic, out bytesToRead) ||
+            !tryReader.TryReadInt16(out var partition, out bytesToRead) ||
+            !tryReader.TryReadBytes(ProtocolConstants.MaxKeySize, out var key, out bytesToRead))
         {
             message = default;
             return false;

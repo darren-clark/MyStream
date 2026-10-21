@@ -10,5 +10,8 @@ internal interface IPrimitiveReader
     public bool TryReadInt64(out long value, out int bytesToRead);
     public bool TryReadUtf8String(out RefUtf8String value, out int bytesToRead);
     public bool TryReadBytes(int maximum, out RefBytes value, out int bytesToRead);
+
+    /// <summary>A run of bytes whose length the caller already knows, left as a view over the buffer.</summary>
+    public bool TryReadExact(int length, out System.Buffers.ReadOnlySequence<byte> value, out int bytesToRead);
     public bool TryReadEnum<T>(out T value, out int bytesToRead) where T : unmanaged, Enum;
 }

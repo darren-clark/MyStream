@@ -12,7 +12,7 @@ public class EventLogTests
     private const int SegmentSize = 1024;
 
     private static Event EventWithBody(int value) =>
-        new(Memory<byte>.Empty, new ReadOnlySequence<byte>(BitConverter.GetBytes(value)));
+        new(DateTime.UnixEpoch, Memory<byte>.Empty, new ReadOnlySequence<byte>(BitConverter.GetBytes(value)));
 
     private static int BodyValue(Event @event) => BitConverter.ToInt32(@event.Body.FirstSpan);
 

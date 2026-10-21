@@ -33,6 +33,9 @@ internal sealed class EventLog
     /// <summary>Committed events: every offset below this is readable.</summary>
     public long Count => Volatile.Read(ref this.count);
 
+    /// <summary>The oldest offset still held. Zero until retention starts dropping segments.</summary>
+    public long StartOffset => 0;
+
     /// <summary>
     /// Offsets are assigned under the lock rather than by an interlocked counter, so a reader can
     /// never reach a reserved but unfilled slot. The lock covers an array store, not the body copy.

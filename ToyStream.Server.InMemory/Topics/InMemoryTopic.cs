@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using ToyStream.Shared;
 
 namespace ToyStream.Server.InMemory;
 
@@ -22,7 +23,8 @@ public sealed class InMemoryTopic: ITopic
 
     public bool TryGetPartition(short partitionId, [NotNullWhen(true)] out ITopicPartition? topicPartition)
     {
-        if (partitionId >= this.partitions.Length)
+        // Unsigned so a negative id, which the sender chooses, is rejected by the same comparison.
+        if ((uint)partitionId >= (uint)this.partitions.Length)
         {
             topicPartition = null;
             return false;
@@ -30,5 +32,13 @@ public sealed class InMemoryTopic: ITopic
 
         topicPartition = partitions[partitionId];
         return true;
+    }
+
+    public void Describe(Span<PartitionDescription> destination)
+    {
+        for (var i = 0; i < this.partitions.Length; i++)
+        {
+            destination[i] = this.partitions[i].Describe();
+        }
     }
 }

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using Microsoft.Extensions.ObjectPool;
 using Microsoft.IO;
+using ToyStream.Protocol.Messages;
 using ToyStream.Protocol.Responses;
 using ToyStream.Shared;
 
@@ -48,7 +49,7 @@ public sealed class InMemoryPartition : ITopicPartition
             return true;
         }
 
-        public async ValueTask<PublishResult> WriteEvent(PipeReader input, CancellationToken cancellationToken)
+        public async ValueTask WriteEvent(PipeReader input, CancellationToken cancellationToken)
         {
             // Released on the way out, so a second call would be writing into another publish's state.
             ObjectDisposedException.ThrowIf(this.partition is null, this);
@@ -62,7 +63,6 @@ public sealed class InMemoryPartition : ITopicPartition
                 await input.CopyToAsync(stream, cancellationToken).ConfigureAwait(false);
                 partition!.CommitEvent(new Event(DateTime.UtcNow, key!.Value, stream.GetReadOnlySequence(), stream));
                 committed = true;
-                return PublishResult.Success;
             }
             finally
             {
@@ -86,6 +86,8 @@ public sealed class InMemoryPartition : ITopicPartition
     }
     
     private void CommitEvent(Event @event) => this.log.Append(@event);
+
+    public PartitionDescription Describe() => new(this.log.StartOffset, this.log.Count);
     
     public IEventWriter GetEventWriter(RefBytes key, long? size)
     {
