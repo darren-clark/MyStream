@@ -1,6 +1,8 @@
+using ToyStream.Shared;
+
 namespace ToyStream.Server;
 
 public interface ITopicPartition
 {
-    void AddConsumer();
+    IEventWriter GetEventWriter(RefBytes key, long? size);
 }

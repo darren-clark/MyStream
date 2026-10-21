@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Net;
 using ToyStream.Protocol;
 using ToyStream.Protocol.Messages;
 using ToyStream.Protocol.Responses;
@@ -24,45 +25,33 @@ public readonly struct ServerHandler(ITopicService topicService) :
             _ => dispatch.Unexpected(messageType)
         };
 
-    ValueTask IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>.DispatchRequest(CreateTopicMessage message,
+    ValueTask IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>>.DispatchRequest(
+        CreateTopicMessage message,
         ResponseWriter<AcknowledgeMessage<CreateTopicResult>> responseWriter,
         CancellationToken cancellationToken)
         => responseWriter.AwaitResultAndWriteAcknowledge(
             topicService.CreateTopic(message.TopicName, message.PartitionCount));
 
-     ValueTask IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>.DispatchRequest(StreamingMessage<PublishMessage> message,
+    ValueTask IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>>.DispatchRequest(
+        StreamingMessage<PublishMessage> message,
         ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
         CancellationToken cancellationToken)
     {
         var header = message.Header;
-        var partition = topicService.GetPartition(header.Topic, header.Partition, out var failure);
-        if (partition is null)
+        if (!topicService.TryStartEventWrite(header.Topic, header.Partition, header.Key, message.Size,
+                out var publishResult, out var writer))
         {
-            // The body is left unread; the connection drains it.
-            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(failure));
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(publishResult));
             return default;
         }
 
-        return AppendAndAcknowledge(partition, message.Body, responseWriter, cancellationToken);
-    }
+        return WriteAndAcknowledge(message.Body, writer, responseWriter, cancellationToken);
 
-    private static async ValueTask AppendAndAcknowledge(IPartitionWriter partition, PipeReader body,
-        ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter,
-        CancellationToken cancellationToken)
-    {
-        while (true)
+        static async ValueTask WriteAndAcknowledge(PipeReader body, IEventWriter writer,
+            ResponseWriter<AcknowledgeMessage<PublishResult>> responseWriter, CancellationToken cancellationToken)
         {
-            var result = await body.ReadAsync(cancellationToken).ConfigureAwait(false);
-            if (result.Buffer.IsEmpty)
-            {
-                break;
-            }
-
-            await partition.AppendAsync(result.Buffer, cancellationToken).ConfigureAwait(false);
-            body.AdvanceTo(result.Buffer.End);
+            var result = await writer.WriteEvent(body, cancellationToken).ConfigureAwait(false);
+            responseWriter.WriteResponse(AcknowledgeMessage.WithResult(result));
         }
-
-        var committed = await partition.CommitAsync(cancellationToken).ConfigureAwait(false);
-        responseWriter.WriteResponse(AcknowledgeMessage.WithResult(committed));
     }
 }

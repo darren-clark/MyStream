@@ -45,7 +45,7 @@ public readonly ref struct RefBytes
         return (int)this.sequence.Length;
     }
 
-    public byte[] ToArray() => this.sequence.IsEmpty ? this.span.ToArray() : this.sequence.ToArray();
+    public byte[] ToArray() => this.sequence.IsEmpty ? [.. this.span] : this.sequence.ToArray();
 
     public static implicit operator RefBytes(ReadOnlySpan<byte> value) => new(value);
 

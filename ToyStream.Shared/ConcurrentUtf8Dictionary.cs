@@ -12,7 +12,7 @@ public class ConcurrentUtf8Dictionary<TValue>: ConcurrentDictionary<Utf8String, 
         this.alternateLookup = this.GetAlternateLookup<RefUtf8String>();
     }
 
-    public bool TryGetValue(RefUtf8String key, [MaybeNullWhen(false)] out TValue value) =>
+    public bool TryGetValue(RefUtf8String key, [MaybeNullWhen(false)]out TValue value) =>
         alternateLookup.TryGetValue(key, out value);
 
     public TValue this[RefUtf8String key] => alternateLookup[key];

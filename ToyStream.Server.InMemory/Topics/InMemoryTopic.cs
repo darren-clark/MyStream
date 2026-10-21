@@ -1,6 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ToyStream.Server.InMemory;
 
-public sealed class InMemoryTopic
+public sealed class InMemoryTopic: ITopic
 {
     private readonly InMemoryPartition[] partitions;
 
@@ -17,4 +19,16 @@ public sealed class InMemoryTopic
 
     public InMemoryPartition? GetPartition(short partitionId) =>
         (uint)partitionId < (uint)this.partitions.Length ? this.partitions[partitionId] : null;
+
+    public bool TryGetPartition(short partitionId, [NotNullWhen(true)] out ITopicPartition? topicPartition)
+    {
+        if (partitionId >= this.partitions.Length)
+        {
+            topicPartition = null;
+            return false;
+        }
+
+        topicPartition = partitions[partitionId];
+        return true;
+    }
 }

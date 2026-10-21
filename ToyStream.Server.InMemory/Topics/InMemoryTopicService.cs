@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ToyStream.Server.InMemory;
 
 using ToyStream.Protocol.Responses;
@@ -12,19 +14,26 @@ public sealed class InMemoryTopicService : ITopicService
             ? CreateTopicResult.Success
             : CreateTopicResult.DuplicateTopic);
 
-    public IPartitionWriter? GetPartition(RefUtf8String topicName, short partitionId, out PublishResult failure)
+    public bool TryStartEventWrite(RefUtf8String topicName, short partitionId, RefBytes key, long? size,
+        out PublishResult failure,
+        [NotNullWhen(true)] out IEventWriter? writer)
     {
         if (!this.topics.TryGetValue(topicName, out var topic))
         {
             failure = PublishResult.UnknownTopic;
-            return null;
+            writer = null;
+            return false;
         }
 
-        var partition = topic.GetPartition(partitionId);
-        failure = partition is null ? PublishResult.UnknownPartition : PublishResult.Success;
-        return partition;
-    }
+        if (!topic.TryGetPartition(partitionId, out var partition))
+        {
+            failure = PublishResult.UnknownPartition;
+            writer = null;
+            return false;
+        }
 
-    public InMemoryTopic? Find(Utf8String topicName) =>
-        this.topics.TryGetValue(topicName, out var topic) ? topic : null;
+        failure = default;
+        writer = partition.GetEventWriter(key, size);
+        return true;
+    }
 }

@@ -16,25 +16,28 @@ using System.IO.Pipelines;
 public sealed class MessageBodyReader(PipeReader inner) : PipeReader
 {
     private ReadOnlySequence<byte> buffer;
+    private long? declaredSize;
     private long chunkRemaining;
     private long delivered;
     private bool finished;
 
     /// <summary>Takes over the connection's buffer at the first chunk header.</summary>
-    internal void Begin(ReadOnlySequence<byte> remaining)
+    internal void Begin(long? declaredSize, ReadOnlySequence<byte> remaining)
     {
         this.buffer = remaining;
+        this.declaredSize = declaredSize;
         this.chunkRemaining = 0;
         this.delivered = 0;
         this.finished = false;
     }
 
+    public long? DeclaredSize => this.declaredSize;
+    
     /// <summary>
     /// Consumes whatever the handler left, so a handler that stops early costs the connection its
     /// position rather than desynchronising the stream, then hands the buffer back.
     /// </summary>
-    internal async ValueTask<ReadOnlySequence<byte>> FinishAsync(long declaredSize,
-        CancellationToken cancellationToken)
+    internal async ValueTask<ReadOnlySequence<byte>> FinishAsync(CancellationToken cancellationToken)
     {
         while (!this.finished)
         {
@@ -47,9 +50,9 @@ public sealed class MessageBodyReader(PipeReader inner) : PipeReader
             this.AdvanceTo(result.Buffer.End);
         }
 
-        if (declaredSize >= 0 && this.delivered != declaredSize)
+        if (declaredSize.HasValue && this.delivered != declaredSize)
         {
-            ThrowBodySizeMismatch(declaredSize, this.delivered);
+            ThrowBodySizeMismatch(declaredSize.Value, this.delivered);
         }
 
         return this.buffer;

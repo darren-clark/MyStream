@@ -15,13 +15,12 @@ public readonly struct DispatchResult
 
     private DispatchResult(int bytesNeeded) => this.BytesNeeded = bytesNeeded;
 
-    private DispatchResult(ValueTask task, long declaredBodySize)
+    private DispatchResult(ValueTask task)
     {
         this.IsSuccess = true;
         this.WroteResponse = true;
         this.Task = task;
         this.OwnsBody = true;
-        this.DeclaredBodySize = declaredBodySize;
     }
 
     public bool IsSuccess { get; }
@@ -38,7 +37,6 @@ public readonly struct DispatchResult
     public bool OwnsBody { get; }
 
     /// <summary>Body length the header declared, or negative when the sender did not know it.</summary>
-    public long DeclaredBodySize { get; }
 
     public static DispatchResult Insufficient(int bytesNeeded) => new(bytesNeeded);
 
@@ -48,6 +46,6 @@ public readonly struct DispatchResult
     /// <summary>
     /// The header is parsed and the handler is reading the body that follows it.
     /// </summary>
-    public static DispatchResult Streaming(ValueTask dispatched, long? declaredBodySize) =>
-        new(dispatched, declaredBodySize ?? -1);
+    public static DispatchResult Streaming(ValueTask dispatched) =>
+        new(dispatched);
 }

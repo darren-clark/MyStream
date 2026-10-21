@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.IO.Pipelines;
 using ToyStream.Protocol.Responses;
 using ToyStream.Shared;
 
@@ -8,10 +10,5 @@ public interface ITopicService
 {
     ValueTask<CreateTopicResult> CreateTopic(RefUtf8String topicName, short partitionCount);
     
-    
-    /// <summary>
-    /// Resolved while the request header is still buffered, because the topic name is a view over
-    /// bytes the connection advances past once streaming starts.
-    /// </summary>
-    IPartitionWriter? GetPartition(RefUtf8String topicName, short partitionId, out PublishResult failure);
+    bool TryStartEventWrite(RefUtf8String topicName, short partitionId, RefBytes key, long? size, out PublishResult failure, [NotNullWhen(true)] out IEventWriter? writer);
 }

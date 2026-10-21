@@ -90,7 +90,7 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
                         // valid one from here.
                         await dispatched.Task.ConfigureAwait(false);
                         buffer = await this.bodyReader
-                            .FinishAsync(dispatched.DeclaredBodySize, cancellationToken)
+                            .FinishAsync(cancellationToken)
                             .ConfigureAwait(false);
 
                         wroteResponse = true;

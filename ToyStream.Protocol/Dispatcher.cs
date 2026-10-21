@@ -67,18 +67,18 @@ public ref struct Dispatcher
         }
 
         // Primed before dispatch: the handler may start reading the body synchronously.
-        this.body.Begin(this.reader.Remaining);
+        this.body.Begin(declaredSize <0 ? null : declaredSize, this.reader.Remaining);
 
         var message = new StreamingMessage<TRequest>
         {
             Header = request,
-            Size = declaredSize < 0 ? null : declaredSize,
+            Size= this.body.DeclaredSize,
             Body = this.body,
         };
 
         var responseWriter = new ResponseWriter<TResponse>(this.writer);
         var dispatched = handler.DispatchRequest(message, responseWriter, this.cancellationToken);
-        return DispatchResult.Streaming(dispatched, message.Size);
+        return DispatchResult.Streaming(dispatched);
     }
 
     [StackTraceHidden]
