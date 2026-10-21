@@ -36,10 +36,8 @@ public class ConnectionBaseTests
             CreateTopic("topic", 4), default);
 
         Assert.That(send.IsCompleted, Is.False, "send completed before the peer acknowledged");
-
         // Act as the server and acknowledge.
-        var serverWriter = new PrimitiveWriter(serverToClient.Writer);
-        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverWriter)
+        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverToClient.Writer)
             .WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
         await serverToClient.Writer.FlushAsync(cancellation.Token);
 
@@ -97,8 +95,7 @@ public class ConnectionBaseTests
             _ = client.WithResult<CreateTopicResult>().Send(CreateTopic("second", 1), default));
 
         // The first request is untouched by the rejected one.
-        var serverWriter = new PrimitiveWriter(serverToClient.Writer);
-        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverWriter)
+        new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(serverToClient.Writer)
             .WriteResponse(AcknowledgeMessage.WithResult(CreateTopicResult.Success));
         await serverToClient.Writer.FlushAsync(cancellation.Token);
 

@@ -36,5 +36,18 @@ public sealed class ToyStreamAdminClient(IClientTransport transport) : IAsyncDis
             PartitionCount = partitionCount
         }, cancellationToken);
 
+    public async ValueTask<DescribeTopicResponse> DescribeTopic(string topicName,
+        CancellationToken cancellationToken = default)
+    {
+        var connected = await this.connection.EnsureConnected(cancellationToken).ConfigureAwait(false);
+        return await SendDescribeTopic(connected, topicName, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static ValueTask<DescribeTopicResponse> SendDescribeTopic(ConnectionBase connectionBase, string topicName,
+        CancellationToken cancellationToken) =>
+        connectionBase
+            .SendMessage<DescribeTopicRequestMessage, DescribeTopicResponseMessage, DescribeTopicResponse>(
+                new DescribeTopicRequestMessage { TopicName = topicName }, cancellationToken);
+
     public ValueTask DisposeAsync() => this.connection.DisposeAsync();
 }

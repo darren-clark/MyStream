@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.IO.Pipelines;
 using System.Diagnostics;
 
 namespace ToyStream.Protocol;
@@ -15,11 +16,11 @@ using ToyStream.Protocol.Messages;
 public ref struct Dispatcher
 {
     private PrimitiveReader reader;
-    private readonly PrimitiveWriter writer;
+    private readonly PipeWriter writer;
     private readonly MessageBodyReader body;
     private readonly CancellationToken cancellationToken;
 
-    internal Dispatcher(PrimitiveReader reader, PrimitiveWriter writer, MessageBodyReader body,
+    internal Dispatcher(PrimitiveReader reader, PipeWriter writer, MessageBodyReader body,
         CancellationToken cancellationToken)
     {
         this.reader = reader;

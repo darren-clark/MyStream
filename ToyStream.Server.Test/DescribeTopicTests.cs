@@ -133,7 +133,7 @@ public class DescribeTopicTests
     {
         var buffer = new TestPipeWriter();
         var responseWriter =
-            new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(new PrimitiveWriter(buffer));
+            new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(buffer);
 
         IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>> handler =
             new ServerHandler(service);
@@ -151,7 +151,7 @@ public class DescribeTopicTests
 
     private static byte[] Describe(ITopicService service, string topicName)    {
         var buffer = new TestPipeWriter();
-        var responseWriter = new ResponseWriter<DescribeTopicResponseMessage>(new PrimitiveWriter(buffer));
+        var responseWriter = new ResponseWriter<DescribeTopicResponseMessage>(buffer);
 
         IRequestHandler<DescribeTopicRequestMessage, DescribeTopicResponseMessage> handler =
             new ServerHandler(service);

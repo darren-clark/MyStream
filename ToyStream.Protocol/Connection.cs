@@ -14,18 +14,16 @@ using System.IO.Pipelines;
 public sealed class Connection<THandler> : ConnectionBase where THandler : struct, IConnectionHandler
 {
     private readonly PipeReader reader;
-    private readonly MessageBodyReader bodyReader;
 
     // Not readonly: a constraint cannot say "readonly struct", so an interface call on a readonly
     // field of THandler is defensively copied.
     private THandler handler;
 
     public Connection(PipeReader reader, PipeWriter writer, THandler handler)
-        : base(writer)
+        : base(reader, writer)
     {
         this.reader = reader;
         this.handler = handler;
-        this.bodyReader = new MessageBodyReader(reader);
     }
 
     public async Task Start(CancellationToken cancellationToken)
@@ -62,18 +60,29 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
 
                     if (ProtocolConstants.IsResponse(typeByte))
                     {
-                        if (this.TryParseAndComplete((ResponseType)typeByte, ref primitiveReader, out bytesNeeded))
+                        var answered = this.TryParseAndComplete((ResponseType)typeByte, ref primitiveReader);
+                        if (!answered.IsParsed)
+                        {
+                            bytesNeeded = answered.BytesNeeded;
+                            break;
+                        }
+
+                        if (!answered.OwnsBody)
                         {
                             buffer = primitiveReader.Remaining;
                             continue;
                         }
 
+                        // The awaiting caller holds the buffer until it says it is done with it.
+                        await answered.BodyDrained.ConfigureAwait(false);
+                        buffer = await this.BodyReader.FinishAsync(cancellationToken).ConfigureAwait(false);
+                        streamed = true;
                         break;
                     }
                     
                     // Incoming request path.
-                    var dispatch = new Dispatcher(primitiveReader, new PrimitiveWriter(this.Writer),
-                        this.bodyReader, cancellationToken);
+                    var dispatch = new Dispatcher(primitiveReader, this.Writer,
+                        this.BodyReader, cancellationToken);
 
                     var dispatched = this.handler.TryParseAndDispatch((MessageType)typeByte, ref dispatch);
 
@@ -89,7 +98,7 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
                         // the dispatch reader points into, so the body reader's buffer is the only
                         // valid one from here.
                         await dispatched.Task.ConfigureAwait(false);
-                        buffer = await this.bodyReader
+                        buffer = await this.BodyReader
                             .FinishAsync(cancellationToken)
                             .ConfigureAwait(false);
 
@@ -107,12 +116,18 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
                     }
                 }
 
-                // Advance only once every handler has consumed its message, which is a view over this buffer.
-                this.reader.AdvanceTo(buffer.Start, buffer.End);
                 if (streamed)
                 {
+                    // What FinishAsync returned is the live buffer, so examining it would hide a
+                    // message already sitting in it behind a wait for bytes that never come.
+                    this.reader.AdvanceTo(buffer.Start, buffer.Start);
                     buffer = ReadOnlySequence<byte>.Empty;
                     bytesNeeded = 1;
+                }
+                else
+                {
+                    // Advance only once every handler has consumed its message, which is a view over this buffer.
+                    this.reader.AdvanceTo(buffer.Start, buffer.End);
                 }
 
                 // One flush per read rather than per message, so a batch of pipelined requests pays once.

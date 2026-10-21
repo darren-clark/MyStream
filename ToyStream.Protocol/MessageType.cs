@@ -6,7 +6,8 @@ public enum MessageType: byte
     CreateTopic = 1,
     PublishEvent = 2,
     Subscribe = 3,
-    DescribeTopic = 4
+    DescribeTopic = 4,
+    Fetch = 5
 }
 
 /// <summary>Responses: the high bit is set.</summary>
@@ -16,6 +17,7 @@ public enum ResponseType: byte
     AcknowledgeWithResult = ProtocolConstants.ResponseFlag | 1,
     DescribeTopic = ProtocolConstants.ResponseFlag | 2,
     Subscribe = ProtocolConstants.ResponseFlag | 3,
+    Fetch = ProtocolConstants.ResponseFlag | 4,
 }
 
 public static class ProtocolConstants
@@ -45,6 +47,16 @@ public static class ProtocolConstants
     /// it decides how much a receiver reads, and how much it may flatten onto the stack.
     /// </summary>
     public const int MaxPartitions = 1024;
+
+    /// <summary>
+    /// A fetch names its topics once and its entries reference them by index, so both the table and
+    /// the entry list are bounded before either is read.
+    /// </summary>
+    public const int MaxTopicsPerFetch = 64;
+
+    public const int MaxFetchEntries = 1024;
+
+    public const int MaxFetchRecords = 4096;
 
     public static bool IsResponse(byte messageType) => (messageType & ResponseFlag) != 0;
 }

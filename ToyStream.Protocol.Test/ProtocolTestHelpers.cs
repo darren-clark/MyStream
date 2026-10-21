@@ -39,6 +39,13 @@ internal static class ProtocolTestHelpers
         where TMessage : struct, IMessage<TMessage>, allows ref struct
         => TMessage.TryRead(ref reader, out message, out bytesToRead);
 
+    // A static abstract member is reachable only through a type parameter, so the call is relayed.
+    public static TResponse CreateStreamedResponse<TResponseMessage, TResponse>(
+        ref readonly TResponseMessage header, PipeReader body)
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+        where TResponse : IStreamingResponse<TResponseMessage, TResponse>
+        => TResponse.CreateResponse(in header, body);
+
     // Messages are ref structs, so they can't be cast to IMessage<T> to reach the explicit implementation.
     public static void WriteMessage<TMessage>(TMessage message, PrimitiveWriter writer)
         where TMessage : struct, IMessage<TMessage>, allows ref struct

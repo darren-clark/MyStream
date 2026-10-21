@@ -7,14 +7,17 @@ public sealed class InMemoryTopic: ITopic
 {
     private readonly InMemoryPartition[] partitions;
 
-    public InMemoryTopic(short partitionCount)
+    public InMemoryTopic(Utf8String name, short partitionCount)
     {
+        Name = name;
         this.partitions = new InMemoryPartition[partitionCount];
         for (var i = 0; i < partitionCount; i++)
         {
             this.partitions[i] = new InMemoryPartition();
         }
     }
+
+    public Utf8String Name { get; }
 
     public int PartitionCount => this.partitions.Length;
 

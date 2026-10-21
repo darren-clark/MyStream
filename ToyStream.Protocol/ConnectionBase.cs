@@ -13,11 +13,11 @@ using ToyStream.Protocol.Messages;
 /// The outbound half, and the half that does not depend on the handler: sending requests and
 /// completing the responses to them. Both roles send, so this is deliberately not role-specific.
 /// </summary>
-public abstract class ConnectionBase(PipeWriter writer)
+public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
 {
     /// <summary>A static method group, so the conversion is cached rather than allocated per send.</summary>
-    private delegate bool ResponseParser(ConnectionBase connectionBase, ResponseType responseType,
-        ref PrimitiveReader reader, out int bytesNeeded);
+    private delegate ResponseParseResult ResponseParser(ConnectionBase connectionBase, ResponseType responseType,
+        ref PrimitiveReader reader);
 
     private readonly ResponseCompletionSourceCache cachedCompletionSources = new();
 
@@ -32,6 +32,12 @@ public abstract class ConnectionBase(PipeWriter writer)
     private int sendInFlight;
 
     protected PipeWriter Writer => writer;
+
+    /// <summary>
+    /// Shared by both halves: a request body belongs to the handler, a response body to whoever is
+    /// awaiting. Only one of the two can be in flight, so one reader serves both.
+    /// </summary>
+    private protected MessageBodyReader BodyReader { get; } = new(reader);
 
     private void BeginSend()
     {
@@ -199,6 +205,61 @@ public abstract class ConnectionBase(PipeWriter writer)
     private static void WriteDeclaredSize(PrimitiveWriter writer, long? size) =>
         writer.Write(size is { } known and >= 0 ? known : -1L);
 
+    /// <summary>
+    /// As <see cref="SendMessage{TRequestMessage,TResponseMessage,TResponse}"/>, but the answer
+    /// arrives as a header followed by a body the caller reads.
+    /// </summary>
+    public ValueTask<TResponse> SendMessageForStreamedResponse<TRequestMessage, TResponseMessage, TResponse>(
+        TRequestMessage requestMessage, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+        where TResponse : class, IStreamingResponse<TResponseMessage, TResponse>
+    {
+        BeginSend();
+        ResponseCompletionSource<TResponse> completionSource;
+        try
+        {
+            completionSource = this.cachedCompletionSources.Get<TResponse>();
+            this.responseCompletionSource = completionSource;
+            this.parser = ParseAndStream<TResponseMessage, TResponse>;
+
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            requestMessage.Write(primitiveWriter);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
+
+        return SendAndWaitStreamed(
+            this,
+            writer.FlushAsync(cancellationToken),
+            completionSource,
+            cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
+    }
+
+    /// <summary>
+    /// Releases the send on delivery like the buffered path: the body that follows is the awaiting
+    /// caller's to drain, and the read loop will not look at the pipe again until it has.
+    /// </summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private static async ValueTask<TResponse> SendAndWaitStreamed<TResponse>(ConnectionBase connection,
+        ValueTask<FlushResult> writerTask,
+        ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
+    {
+        try
+        {
+            await writerTask.ConfigureAwait(false);
+            return await responseCompletion.ValueTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            await cancellation.DisposeAsync().ConfigureAwait(false);
+            connection.EndSend();
+        }
+    }
 
     private ValueTask Flush(CancellationToken cancellationToken)
     {
@@ -364,18 +425,18 @@ public abstract class ConnectionBase(PipeWriter writer)
     /// A response only ever answers a request this side sent, so the outstanding request picks the
     /// decoder and the type byte is checked against it rather than switched on.
     /// </summary>
-    private protected bool TryParseAndComplete(ResponseType responseType, ref PrimitiveReader reader, out int bytesNeeded)
+    private protected ResponseParseResult TryParseAndComplete(ResponseType responseType, ref PrimitiveReader reader)
     {
         if (this.parser is null)
         {
             ThrowUnsolicited(responseType);
         }
 
-        return this.parser(this, responseType, ref reader, out bytesNeeded);
+        return this.parser(this, responseType, ref reader);
     }
 
-    private static bool TryParseAndComplete<TResponseMessage, TResponse>(ConnectionBase connectionBase,
-        ResponseType responseType, ref PrimitiveReader reader, out int bytesNeeded)
+    private static ResponseParseResult TryParseAndComplete<TResponseMessage, TResponse>(ConnectionBase connectionBase,
+        ResponseType responseType, ref PrimitiveReader reader)
         where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
         where TResponse : IResponse<TResponseMessage, TResponse>
     {
@@ -384,14 +445,41 @@ public abstract class ConnectionBase(PipeWriter writer)
             ThrowWrongResponse(responseType, TResponseMessage.Type);
         }
 
-        if (!TResponseMessage.TryRead(ref reader, out var response, out bytesNeeded))
+        if (!TResponseMessage.TryRead(ref reader, out var response, out var bytesNeeded))
         {
-            return false;
+            return ResponseParseResult.Insufficient(bytesNeeded);
         }
 
         connectionBase.parser = null;
         connectionBase.responseCompletionSource!.TrySetResult(TResponse.CreateResponse(in response));
-        return true;
+        return ResponseParseResult.Completed();
+    }
+
+    /// <summary>
+    /// The header is parsed from the buffer, then what remains of it becomes the body the awaiting
+    /// caller reads. The read loop stays out of the buffer until that caller is finished.
+    /// </summary>
+    private static ResponseParseResult ParseAndStream<TResponseMessage, TResponse>(ConnectionBase connectionBase,
+        ResponseType responseType, ref PrimitiveReader reader)
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct
+        where TResponse : class, IStreamingResponse<TResponseMessage, TResponse>
+    {
+        if (responseType != TResponseMessage.Type)
+        {
+            ThrowWrongResponse(responseType, TResponseMessage.Type);
+        }
+
+        if (!TResponseMessage.TryRead(ref reader, out var header, out var bytesNeeded))
+        {
+            return ResponseParseResult.Insufficient(bytesNeeded);
+        }
+
+        connectionBase.BodyReader.Begin(declaredSize: null, reader.Remaining);
+        var response = TResponse.CreateResponse(in header, connectionBase.BodyReader);
+
+        connectionBase.parser = null;
+        connectionBase.responseCompletionSource!.TrySetResult(response);
+        return ResponseParseResult.Streaming(response.BodyDrained);
     }
 
     [DoesNotReturn]

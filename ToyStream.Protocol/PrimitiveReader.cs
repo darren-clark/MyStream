@@ -129,6 +129,20 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadBytes(int maximum, out RefBytes value, out int bytesToRead)
     {
+        if (!TryReadLengthPrefixed(maximum, out var buffer, out bytesToRead))
+        {
+            value = default;
+            return false;
+        }
+
+        value = new RefBytes(buffer);
+        return true;
+    }
+
+    /// <summary>As <see cref="TryReadBytes"/>, but left as a sequence for a non ref struct to hold.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadLengthPrefixed(int maximum, out ReadOnlySequence<byte> value, out int bytesToRead)
+    {
         if (!TryReadInt32(out var length, out bytesToRead))
         {
             value = default;
@@ -141,18 +155,7 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
             ThrowHelpers.ThrowInvalidLength(length, maximum);
         }
 
-        if (reader.Remaining < length)
-        {
-            value = default;
-            bytesToRead = (int)(length - reader.Remaining);
-            return false;
-        }
-
-        var read = this.reader.TryReadExact(length, out var buffer);
-        Debug.Assert(read);
-        value = new RefBytes(buffer);
-        bytesToRead = 0;
-        return true;
+        return TryReadExact(length, out value, out bytesToRead);
     }
 
     /// <summary>A run of bytes whose length the caller already knows, left as a view over the buffer.</summary>

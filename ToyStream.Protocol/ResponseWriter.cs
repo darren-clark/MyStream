@@ -1,3 +1,4 @@
+using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using ToyStream.Protocol.Messages;
 
@@ -7,14 +8,21 @@ namespace ToyStream.Protocol;
 /// All a request handler is given to answer with: it can write exactly one response and cannot reach
 /// the pipe underneath to flush, complete or cancel it.
 /// </summary>
-public readonly struct ResponseWriter<TResponse>(PrimitiveWriter writer)
+public readonly struct ResponseWriter<TResponse>(PipeWriter writer)
     where TResponse : struct, IResponseMessage<TResponse>, allows ref struct
 {
     public void WriteResponse(TResponse message)
     {
-        writer.Write(TResponse.Type);
-        message.Write(writer);
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.Write(TResponse.Type);
+        message.Write(primitiveWriter);
     }
+
+    /// <summary>
+    /// A body to follow the header, for a response whose length is not known when it starts. The
+    /// caller completes it, and flushing it is what paces a reader that cannot keep up.
+    /// </summary>
+    public MessageBodyWriter BeginBody() => new(writer);
 }
 
 public static class ResponseWriter

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using Microsoft.Extensions.ObjectPool;
@@ -22,6 +23,9 @@ public sealed class InMemoryPartition : ITopicPartition
     private const int MaxPreallocation = 1024 * 1024;
 
     private readonly EventLog log = new();
+
+    /// <summary>Continuations run asynchronously so a waking reader never runs on the publisher.</summary>
+    private TaskCompletionSource appendSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private sealed class EventWriter : IEventWriter
     {
@@ -85,9 +89,33 @@ public sealed class InMemoryPartition : ITopicPartition
         public override bool Return(EventWriter obj) => obj.Release();
     }
     
-    private void CommitEvent(Event @event) => this.log.Append(@event);
+    private void CommitEvent(Event @event)
+    {
+        this.log.Append(@event);
+
+        // Replaced before completing, so a waiter that wakes and re-reads cannot miss the next one.
+        Interlocked
+            .Exchange(ref this.appendSignal, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))
+            .TrySetResult();
+    }
+
+    public Task WaitForAppend(CancellationToken cancellationToken) =>
+        Volatile.Read(ref this.appendSignal).Task.WaitAsync(cancellationToken);
 
     public PartitionDescription Describe() => new(this.log.StartOffset, this.log.Count);
+
+    public bool TryReadRecord(short topicIndex, short partitionId, long offset, out FetchedRecord record)
+    {
+        if (!this.log.TryGet(offset, out var stored))
+        {
+            record = default;
+            return false;
+        }
+
+        record = new FetchedRecord(topicIndex, partitionId, offset, stored.receivedTime,
+            new ReadOnlySequence<byte>(stored.Key), stored.Body);
+        return true;
+    }
     
     public IEventWriter GetEventWriter(RefBytes key, long? size)
     {
