@@ -4,9 +4,9 @@ using ToyStream.Protocol;
 
 /// <summary>
 /// Lazily opens one transport and runs the read loop over it. Shared by the role clients, which
-/// differ only in the messages they send.
+/// differ only in the role they declare and the messages they send.
 /// </summary>
-internal sealed class ClientConnection(IClientTransport transport) : IAsyncDisposable
+internal sealed class ClientConnection(IClientTransport transport, ConnectionRole role) : IAsyncDisposable
 {
     private readonly CancellationTokenSource cancellation = new();
 
@@ -27,6 +27,9 @@ internal sealed class ClientConnection(IClientTransport transport) : IAsyncDispo
         // Stored before anything else can throw, so a failure here still leaves the transport disposable.
         var opened = await transport.ConnectAsync(cancellationToken).ConfigureAwait(false);
         this.transportConnection = opened;
+
+        // Before the read loop: the server picks its handler from this, so nothing may precede it.
+        await ProtocolHandshake.WriteAsync(opened.Output, role, cancellationToken).ConfigureAwait(false);
 
         var started = new Connection<ClientHandler>(opened.Input, opened.Output, new ClientHandler());
         this.connection = started;

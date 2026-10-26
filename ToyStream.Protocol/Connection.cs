@@ -26,7 +26,7 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
         this.handler = handler;
     }
 
-    public async Task Start(CancellationToken cancellationToken)
+    public override async Task Start(CancellationToken cancellationToken)
     {
         await Task.Yield();
         try
@@ -102,7 +102,7 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
                             .FinishAsync(cancellationToken)
                             .ConfigureAwait(false);
 
-                        wroteResponse = true;
+                        wroteResponse |= dispatched.WroteResponse;
                         streamed = true;
                         break;
                     }

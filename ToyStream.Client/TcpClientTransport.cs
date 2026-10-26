@@ -2,6 +2,7 @@ namespace ToyStream.Client;
 
 using System.IO.Pipelines;
 using System.Net.Sockets;
+using ToyStream.Protocol;
 
 public sealed class TcpClientTransport(ClientOptions options) : IClientTransport
 {

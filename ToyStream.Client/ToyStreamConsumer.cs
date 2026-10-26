@@ -52,7 +52,7 @@ public sealed class ToyStreamConsumer : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfZero(this.topics.Length);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(this.topics.Length, ProtocolConstants.MaxTopicsPerFetch);
 
-        this.connection = new ClientConnection(transport);
+        this.connection = new ClientConnection(transport, ConnectionRole.Consumer);
         this.options = options ?? new ConsumerOptions();
         this.entryStart = new int[this.topics.Length];
     }

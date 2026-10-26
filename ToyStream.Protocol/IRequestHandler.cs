@@ -15,3 +15,19 @@ public interface IRequestHandler<in TRequestMessage, TResponseMessage>
     ValueTask DispatchRequest(TRequestMessage message,
         ResponseWriter<TResponseMessage> responseWriter, CancellationToken cancellationToken);
 }
+
+public interface IRequestHandler<in TRequestMessage>
+    where TRequestMessage : struct, IRequestMessage<TRequestMessage>, allows ref struct
+{
+    ValueTask DispatchRequest(TRequestMessage message, CancellationToken cancellationToken);
+}
+
+public interface IStreamingRequestHandler<TRequestMessage>
+    where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage>, allows ref struct
+{
+    /// <summary>
+    /// The header is a ref struct, so anything read from it that outlives the first await must be
+    /// resolved before handing off to an async method.
+    /// </summary>
+    ValueTask DispatchRequest(StreamingMessage<TRequestMessage> message, CancellationToken cancellationToken);
+}

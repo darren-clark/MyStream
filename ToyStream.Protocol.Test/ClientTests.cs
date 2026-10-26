@@ -240,12 +240,22 @@ public class ClientTests
             var clientToServer = new Pipe();
             var serverToClient = new Pipe();
 
-            var server = new Connection<EchoingServerHandler>(
-                clientToServer.Reader, serverToClient.Writer, new EchoingServerHandler(Published));
-            _ = server.Start(this.cancellation.Token);
+            _ = Serve(clientToServer.Reader, serverToClient.Writer);
 
             return new ValueTask<ITransportConnection>(
                 new PipePair(serverToClient.Reader, clientToServer.Writer));
+        }
+
+        /// <summary>
+        /// A client declares its role before anything else, so the loop cannot start until that has
+        /// been read - otherwise the handshake is parsed as a message.
+        /// </summary>
+        private async Task Serve(PipeReader reader, PipeWriter writer)
+        {
+            await ProtocolHandshake.ReadAsync(reader, TimeSpan.FromSeconds(10), this.cancellation.Token);
+
+            await new Connection<EchoingServerHandler>(reader, writer, new EchoingServerHandler(Published))
+                .Start(this.cancellation.Token);
         }
 
         public async ValueTask DisposeAsync()

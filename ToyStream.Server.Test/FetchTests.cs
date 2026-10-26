@@ -255,7 +255,7 @@ public class FetchTests
         var service = ServiceWithTopic("events", 1);
         using var cancellation = new CancellationTokenSource();
 
-        IRequestHandler<FetchRequestMessage, FetchResponseMessage> handler = new ServerHandler(service);
+        IRequestHandler<FetchRequestMessage, FetchResponseMessage> handler = new FetchHandler(service);
         var fetch = handler.DispatchRequest(
             new FetchRequestMessage
             {
@@ -280,8 +280,8 @@ public class FetchTests
         var serverToClient = new Pipe();
         var cancellation = new CancellationTokenSource();
 
-        var server = new Connection<ServerHandler>(
-            clientToServer.Reader, serverToClient.Writer, new ServerHandler(service));
+        var server = new Connection<ConsumerHandler>(
+            clientToServer.Reader, serverToClient.Writer, new ConsumerHandler(service));
         var client = new Connection<NoRequestHandler>(
             serverToClient.Reader, clientToServer.Writer, new NoRequestHandler());
 
@@ -358,7 +358,7 @@ public class FetchTests
     {
         var buffer = new TestPipeWriter();
         IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>> handler =
-            new ServerHandler(service);
+            new CreateTopicHandler(service);
 
         var dispatched = handler.DispatchRequest(
             new CreateTopicMessage { TopicName = new Utf8String(topicName), PartitionCount = partitionCount },
@@ -377,7 +377,7 @@ public class FetchTests
 
         var buffer = new TestPipeWriter();
         IStreamingRequestHandler<PublishMessage, AcknowledgeMessage<PublishResult>> handler =
-            new ServerHandler(service);
+            new PublishHandler(service);
 
         await handler.DispatchRequest(
             new StreamingMessage<PublishMessage>

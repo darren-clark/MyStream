@@ -136,7 +136,7 @@ public class DescribeTopicTests
             new ResponseWriter<AcknowledgeMessage<CreateTopicResult>>(buffer);
 
         IRequestHandler<CreateTopicMessage, AcknowledgeMessage<CreateTopicResult>> handler =
-            new ServerHandler(service);
+            new CreateTopicHandler(service);
 
         var dispatched = handler.DispatchRequest(
             new CreateTopicMessage { TopicName = new Utf8String(topicName), PartitionCount = partitionCount },
@@ -154,7 +154,7 @@ public class DescribeTopicTests
         var responseWriter = new ResponseWriter<DescribeTopicResponseMessage>(buffer);
 
         IRequestHandler<DescribeTopicRequestMessage, DescribeTopicResponseMessage> handler =
-            new ServerHandler(service);
+            new DescribeTopicHandler(service);
 
         var dispatched = handler.DispatchRequest(
             new DescribeTopicRequestMessage { TopicName = new Utf8String(topicName) }, responseWriter, default);

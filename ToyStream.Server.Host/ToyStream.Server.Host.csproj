@@ -12,6 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\ToyStream.Server.InMemory\ToyStream.Server.InMemory.csproj" />
       <ProjectReference Include="..\ToyStream.Server\ToyStream.Server.csproj" />
     </ItemGroup>
 </Project>

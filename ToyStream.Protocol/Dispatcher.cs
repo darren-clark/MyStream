@@ -45,7 +45,7 @@ public ref struct Dispatcher
         var responseWriter = new ResponseWriter<TResponse>(this.writer);
         return DispatchResult.Dispatched(handler.DispatchRequest(request, responseWriter, this.cancellationToken));
     }
-
+    
     /// <summary>
     /// As <see cref="Request{THandler,TRequest,TResponse}"/>, but the message is given a body to read.
     /// The connection owns the body either way: whatever the handler leaves is drained before the next
@@ -80,6 +80,55 @@ public ref struct Dispatcher
         var responseWriter = new ResponseWriter<TResponse>(this.writer);
         var dispatched = handler.DispatchRequest(message, responseWriter, this.cancellationToken);
         return DispatchResult.Streaming(dispatched);
+    }
+
+    /// <summary>
+    /// A message with no answer. The handler is given no <see cref="ResponseWriter{T}"/> at all, so a
+    /// role whose connection is one directional cannot write back by accident.
+    /// </summary>
+    public DispatchResult Request<THandler, TRequest>(THandler handler)
+        where TRequest : struct, IRequestMessage<TRequest>, allows ref struct
+        where THandler : struct, IRequestHandler<TRequest>
+    {
+        if (!TRequest.TryRead(ref this.reader, out var request, out var bytesNeeded))
+        {
+            return DispatchResult.Insufficient(bytesNeeded);
+        }
+
+        return DispatchResult.Dispatched(handler.DispatchRequest(request, this.cancellationToken),
+            wroteResponse: false);
+    }
+
+    /// <summary>
+    /// As <see cref="Request{THandler,TRequest}"/>, but the message is given a body to read.
+    /// </summary>
+    public DispatchResult StreamingRequest<THandler, TRequest>(THandler handler)
+        where TRequest : struct, IStreamingRequestMessage<TRequest>, allows ref struct
+        where THandler : struct, IStreamingRequestHandler<TRequest>
+    {
+        if (!TRequest.TryRead(ref this.reader, out var request, out var bytesNeeded))
+        {
+            return DispatchResult.Insufficient(bytesNeeded);
+        }
+
+        // Read here rather than by the message, mirroring where the send side writes it.
+        if (!this.reader.TryReadInt64(out var declaredSize, out bytesNeeded))
+        {
+            return DispatchResult.Insufficient(bytesNeeded);
+        }
+
+        // Primed before dispatch: the handler may start reading the body synchronously.
+        this.body.Begin(declaredSize < 0 ? null : declaredSize, this.reader.Remaining);
+
+        var message = new StreamingMessage<TRequest>
+        {
+            Header = request,
+            Size = this.body.DeclaredSize,
+            Body = this.body,
+        };
+
+        return DispatchResult.Streaming(handler.DispatchRequest(message, this.cancellationToken),
+            wroteResponse: false);
     }
 
     [StackTraceHidden]

@@ -39,6 +39,8 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
     /// </summary>
     private protected MessageBodyReader BodyReader { get; } = new(reader);
 
+    public abstract Task Start(CancellationToken cancellationToken);
+    
     private void BeginSend()
     {
         if (Interlocked.Exchange(ref this.sendInFlight, 1) != 0)

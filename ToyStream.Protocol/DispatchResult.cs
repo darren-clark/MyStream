@@ -6,22 +6,15 @@ namespace ToyStream.Protocol;
 /// </summary>
 public readonly struct DispatchResult
 {
-    private DispatchResult(bool wroteResponse, ValueTask task)
+    private DispatchResult(ValueTask task, bool wroteResponse, bool ownsBody)
     {
         this.IsSuccess = true;
         this.WroteResponse = wroteResponse;
         this.Task = task;
+        this.OwnsBody = ownsBody;
     }
 
     private DispatchResult(int bytesNeeded) => this.BytesNeeded = bytesNeeded;
-
-    private DispatchResult(ValueTask task)
-    {
-        this.IsSuccess = true;
-        this.WroteResponse = true;
-        this.Task = task;
-        this.OwnsBody = true;
-    }
 
     public bool IsSuccess { get; }
     public bool WroteResponse { get; }
@@ -41,11 +34,11 @@ public readonly struct DispatchResult
     public static DispatchResult Insufficient(int bytesNeeded) => new(bytesNeeded);
 
     public static DispatchResult Dispatched(ValueTask dispatched, bool wroteResponse = true) =>
-        new(wroteResponse, dispatched);
+        new(dispatched, wroteResponse, ownsBody: false);
 
     /// <summary>
     /// The header is parsed and the handler is reading the body that follows it.
     /// </summary>
-    public static DispatchResult Streaming(ValueTask dispatched) =>
-        new(dispatched);
+    public static DispatchResult Streaming(ValueTask dispatched, bool wroteResponse = true) =>
+        new(dispatched, wroteResponse, ownsBody: true);
 }

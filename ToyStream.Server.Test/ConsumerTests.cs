@@ -242,21 +242,12 @@ public class ConsumerTests
                 var clientToServer = new Pipe();
                 var serverToClient = new Pipe();
 
-                var server = new Connection<ServerHandler>(
-                    clientToServer.Reader, serverToClient.Writer, new ServerHandler(service));
-                _ = server.Start(cancellationToken);
+                // The real accept path, so the consumer's handshake is exercised rather than skipped.
+                _ = TestServer.Serving(service)
+                    .Accept(new PipePair(clientToServer.Reader, serverToClient.Writer), cancellationToken);
 
                 return new ValueTask<ITransportConnection>(
                     new PipePair(serverToClient.Reader, clientToServer.Writer));
-            }
-
-            private sealed class PipePair(PipeReader input, PipeWriter output) : ITransportConnection
-            {
-                public PipeReader Input => input;
-
-                public PipeWriter Output => output;
-
-                public ValueTask DisposeAsync() => default;
             }
         }
     }

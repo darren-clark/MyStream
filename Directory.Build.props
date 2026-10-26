@@ -1,0 +1,8 @@
+<Project>
+
+    <PropertyGroup>
+        <!-- An unassigned handler field would dispatch to a default struct and fault at runtime. -->
+        <WarningsAsErrors>$(WarningsAsErrors);CS0649</WarningsAsErrors>
+    </PropertyGroup>
+
+</Project>

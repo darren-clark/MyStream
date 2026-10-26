@@ -11,7 +11,7 @@ using ToyStream.Protocol.Responses;
 /// <remarks>Not thread safe: the underlying connection allows one outstanding request.</remarks>
 public sealed class ToyStreamAdminClient(IClientTransport transport) : IAsyncDisposable
 {
-    private readonly ClientConnection connection = new(transport);
+    private readonly ClientConnection connection = new(transport, ConnectionRole.Admin);
 
     /// <summary>
     /// Expected to be awaited before the first request, so an unreachable host fails here rather
