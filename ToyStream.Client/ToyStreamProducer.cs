@@ -13,7 +13,7 @@ using ToyStream.Shared;
 /// <remarks>Not thread safe: the underlying connection allows one outstanding request.</remarks>
 public sealed class ToyStreamProducer(IClientTransport transport) : IAsyncDisposable
 {
-    private readonly ClientConnection connection = new(transport, ConnectionRole.Producer);
+    private readonly ClientConnection<ClientHandler> connection = new(transport, ConnectionRole.Producer, default);
 
     /// <summary>
     /// Expected to be awaited before the first publish, so an unreachable host fails here rather

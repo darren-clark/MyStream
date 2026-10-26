@@ -34,7 +34,7 @@ public sealed record ConsumerOptions
 /// </remarks>
 public sealed class ToyStreamConsumer : IAsyncDisposable
 {
-    private readonly ClientConnection connection;
+    private readonly ClientConnection<ClientHandler> connection;
     private readonly ConsumerOptions options;
     private readonly Utf8String[] topics;
 
@@ -52,7 +52,7 @@ public sealed class ToyStreamConsumer : IAsyncDisposable
         ArgumentOutOfRangeException.ThrowIfZero(this.topics.Length);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(this.topics.Length, ProtocolConstants.MaxTopicsPerFetch);
 
-        this.connection = new ClientConnection(transport, ConnectionRole.Consumer);
+        this.connection = new ClientConnection<ClientHandler>(transport, ConnectionRole.Consumer, default);
         this.options = options ?? new ConsumerOptions();
         this.entryStart = new int[this.topics.Length];
     }

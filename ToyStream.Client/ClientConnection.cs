@@ -4,16 +4,24 @@ using ToyStream.Protocol;
 
 /// <summary>
 /// Lazily opens one transport and runs the read loop over it. Shared by the role clients, which
-/// differ only in the role they declare and the messages they send.
+/// differ in the role they declare, the messages they send, and what they serve in return.
 /// </summary>
-internal sealed class ClientConnection(IClientTransport transport, ConnectionRole role) : IAsyncDisposable
+internal sealed class ClientConnection<THandler>(IClientTransport transport, ConnectionRole role, THandler handler)
+    : IAsyncDisposable
+    where THandler : struct, IConnectionHandler
 {
     private readonly CancellationTokenSource cancellation = new();
 
     private ITransportConnection? transportConnection;
-    private Connection<ClientHandler>? connection;
+    private Connection<THandler>? connection;
     private Task? readLoop;
     private bool disposed;
+
+    /// <summary>
+    /// Ends when the peer goes away, which on a one-way connection is the only sign anything is
+    /// wrong - nothing else would ever fail.
+    /// </summary>
+    public Task ReadLoop => this.readLoop ?? Task.CompletedTask;
 
     public async ValueTask<ConnectionBase> EnsureConnected(CancellationToken cancellationToken)
     {
@@ -31,7 +39,7 @@ internal sealed class ClientConnection(IClientTransport transport, ConnectionRol
         // Before the read loop: the server picks its handler from this, so nothing may precede it.
         await ProtocolHandshake.WriteAsync(opened.Output, role, cancellationToken).ConfigureAwait(false);
 
-        var started = new Connection<ClientHandler>(opened.Input, opened.Output, new ClientHandler());
+        var started = new Connection<THandler>(opened.Input, opened.Output, handler);
         this.connection = started;
 
         // Start returns only when the read loop ends, so it is deliberately not awaited here.
