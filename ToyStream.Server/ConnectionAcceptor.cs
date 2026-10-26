@@ -40,12 +40,16 @@ public sealed class ConnectionAcceptor(IServiceProvider serviceProvider)
                         ConnectionRole.Admin => GetConnection<AdminHandler>(),
                         ConnectionRole.Producer => GetConnection<ProducerHandler>(),
                         ConnectionRole.Consumer => GetConnection<ConsumerHandler>(),
-
-                        // Subscriptions arrive with the push work; the role is in the wire contract
-                        // already so that adding it later is not a version bump.
+                        ConnectionRole.Subscriber => null,
                         _ => null
                     }
                     : null;
+
+                if (role == ConnectionRole.Subscriber && status == HandshakeStatus.Accepted)
+                {
+                    await Subscribe(transport, cancellationToken).ConfigureAwait(false);
+                    return;
+                }
 
                 if (connection is null)
                 {
@@ -69,5 +73,35 @@ public sealed class ConnectionAcceptor(IServiceProvider serviceProvider)
         ConnectionBase GetConnection<THandler>() where THandler : struct, IConnectionHandler =>
             new Connection<THandler>(transport.Input, transport.Output,
                 ActivatorUtilities.CreateInstance<THandler>(serviceProvider));
+    }
+
+    /// <summary>
+    /// The one role whose connection is not just a read loop: the pump runs alongside it and owns
+    /// the write side, so the two end together and either one finishing ends the subscription.
+    /// </summary>
+    private async Task Subscribe(ITransportConnection transport, CancellationToken cancellationToken)
+    {
+        var pump = ActivatorUtilities.CreateInstance<SubscriptionPump>(serviceProvider);
+        var connection = new Connection<SubscriberHandler>(
+            transport.Input, transport.Output, new SubscriberHandler(pump));
+
+        pump.Attach(connection);
+
+        using var ended = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var reading = connection.Start(ended.Token);
+        var pushing = pump.Run(ended.Token);
+
+        try
+        {
+            await Task.WhenAny(reading, pushing).ConfigureAwait(false);
+        }
+        finally
+        {
+            await ended.CancelAsync().ConfigureAwait(false);
+        }
+
+        // Observed so a fault in either half is not lost, which on a one-way connection is the only
+        // way it would ever be noticed.
+        await Task.WhenAll(reading, pushing).ConfigureAwait(false);
     }
 }

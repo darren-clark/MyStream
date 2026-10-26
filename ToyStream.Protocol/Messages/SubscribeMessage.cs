@@ -4,15 +4,19 @@ namespace ToyStream.Protocol.Messages;
 
 public enum SubscribeOffset : byte
 {
-    Stored,
     Earliest,
     Latest
 }
 
-public readonly ref struct SubscribeMessage : IRequestMessage<SubscribeMessage, SubscribeResponseMessage>
+/// <summary>
+/// One way: once the pump owns the write side there is no reader for an answer, so success looks
+/// like records arriving and failure looks like <see cref="SubscriptionLostMessage"/>. One failure
+/// path rather than two.
+/// </summary>
+public readonly ref struct SubscribeMessage : IRequestMessage<SubscribeMessage>
 {
-    public required RefUtf8String ConsumerGroup { get; init; }
     public required RefUtf8String Topic { get; init; }
+
     public required SubscribeOffset StartOffset { get; init; }
 
     static bool IMessage<SubscribeMessage>.TryRead<TReader>(ref TReader reader, out SubscribeMessage message,
@@ -20,7 +24,6 @@ public readonly ref struct SubscribeMessage : IRequestMessage<SubscribeMessage, 
     {
         var tryReader = reader;
         if (!tryReader.TryReadUtf8String(out var topic, out bytesToRead) ||
-            !tryReader.TryReadUtf8String(out var consumerGroup, out bytesToRead) ||
             !tryReader.TryReadEnum<SubscribeOffset>(out var startOffset, out bytesToRead))
         {
             message = default;
@@ -28,15 +31,14 @@ public readonly ref struct SubscribeMessage : IRequestMessage<SubscribeMessage, 
         }
 
         reader = tryReader;
-        message = new SubscribeMessage { Topic = topic, ConsumerGroup = consumerGroup, StartOffset = startOffset };
+        message = new SubscribeMessage { Topic = topic, StartOffset = startOffset };
         return true;
     }
 
-    public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+    void IMessage.Write<TWriter>(TWriter writer)
     {
-        writer.Write(Topic);
-        writer.Write(ConsumerGroup);
-        writer.Write(StartOffset);
+        writer.Write(this.Topic);
+        writer.Write(this.StartOffset);
     }
 
     public static MessageType Type => MessageType.Subscribe;

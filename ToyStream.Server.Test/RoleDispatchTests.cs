@@ -46,15 +46,16 @@ public class RoleDispatchTests
         await cancellation.CancelAsync();
     }
 
-    /// <summary>The role is advertised on the wire before it is served, so it must be refused cleanly.</summary>
+    /// <summary>A role byte outside the set is refused, so an unknown peer is told rather than hung.</summary>
     [Test]
-    public async Task SubscriberRoleIsRefusedUntilPushLands()
+    public async Task AnUnknownRoleIsRefused()
     {
         var clientToServer = new Pipe();
         var serverToClient = new Pipe();
         using var cancellation = new CancellationTokenSource();
 
-        await ProtocolHandshake.WriteAsync(clientToServer.Writer, ConnectionRole.Subscriber, cancellation.Token);
+        byte[] handshake = [.. ProtocolHandshake.Magic, ProtocolHandshake.CurrentVersion, 99];
+        await clientToServer.Writer.WriteAsync(handshake, cancellation.Token);
         await TestServer.Serving(new InMemoryTopicService())
             .Accept(new PipePair(clientToServer.Reader, serverToClient.Writer), cancellation.Token);
 

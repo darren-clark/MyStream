@@ -7,7 +7,13 @@ public enum MessageType: byte
     PublishEvent = 2,
     Subscribe = 3,
     DescribeTopic = 4,
-    Fetch = 5
+    Fetch = 5,
+
+    /// <summary>Server to client: a batch of records for a subscription, as a streamed body.</summary>
+    PushRecords = 6,
+
+    /// <summary>Server to client: the subscription cannot continue, so re-subscribe.</summary>
+    SubscriptionLost = 7
 }
 
 /// <summary>Responses: the high bit is set.</summary>
@@ -16,7 +22,6 @@ public enum ResponseType: byte
     Acknowledge = ProtocolConstants.ResponseFlag,
     AcknowledgeWithResult = ProtocolConstants.ResponseFlag | 1,
     DescribeTopic = ProtocolConstants.ResponseFlag | 2,
-    Subscribe = ProtocolConstants.ResponseFlag | 3,
     Fetch = ProtocolConstants.ResponseFlag | 4,
 }
 

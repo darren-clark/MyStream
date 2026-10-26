@@ -105,6 +105,34 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
     }
 
     /// <summary>
+    /// A one-way message whose body the sender writes directly rather than copying from a pipe, for
+    /// a producer that has the bytes in hand. Holds the send until <see cref="EndOneWayBody"/>, so
+    /// the caller must pair them.
+    /// </summary>
+    public MessageBodyWriter BeginOneWayBody<TRequestMessage>(TRequestMessage message)
+        where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage>, allows ref struct
+    {
+        BeginSend();
+        try
+        {
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.Write(TRequestMessage.Type);
+            message.Write(primitiveWriter);
+
+            // Always streamed: a sender that writes its own body does not know the length up front.
+            WriteDeclaredSize(primitiveWriter, null);
+            return new MessageBodyWriter(writer);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
+    }
+
+    public void EndOneWayBody() => EndSend();
+
+    /// <summary>
     /// Curried so the result type can be named while the message type is still inferred: C# cannot
     /// infer <typeparamref name="TResult"/> from the request's constraint, and type arguments are all or none.
     /// </summary>
