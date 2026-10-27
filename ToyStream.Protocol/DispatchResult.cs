@@ -29,8 +29,6 @@ public readonly struct DispatchResult
     /// </summary>
     public bool OwnsBody { get; }
 
-    /// <summary>Body length the header declared, or negative when the sender did not know it.</summary>
-
     public static DispatchResult Insufficient(int bytesNeeded) => new(bytesNeeded);
 
     public static DispatchResult Dispatched(ValueTask dispatched, bool wroteResponse = true) =>

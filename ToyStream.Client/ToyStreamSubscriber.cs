@@ -76,6 +76,11 @@ public sealed class ToyStreamSubscriber : IAsyncDisposable
         this.stream.Close();
 
         await this.connection.DisposeAsync().ConfigureAwait(false);
+
+        if (this.watching is { } watch)
+        {
+            await watch.ConfigureAwait(false);
+        }
     }
 
     private async ValueTask EnsureSubscribed(CancellationToken cancellationToken)
@@ -86,8 +91,10 @@ public sealed class ToyStreamSubscriber : IAsyncDisposable
             return;
         }
 
-        this.subscribed = true;
+        // Latched only once the server has been told, so a failed send is retried rather than
+        // leaving every later read waiting on a subscription that was never made.
         await SendSubscribe(connected, this.topic, this.options.StartAt, cancellationToken).ConfigureAwait(false);
+        this.subscribed = true;
 
         // A one-way connection has nothing else that would ever fail, so the read loop ending is the
         // only sign the server has gone.

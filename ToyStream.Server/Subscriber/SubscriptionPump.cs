@@ -69,7 +69,7 @@ public sealed class SubscriptionPump(ITopicService topicService)
         {
             if (!HasRecords(partitions, offsets))
             {
-                await WaitForAppend(partitions, cancellationToken).ConfigureAwait(false);
+                await WaitForAppend(partitions, offsets, cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -122,7 +122,8 @@ public sealed class SubscriptionPump(ITopicService topicService)
     /// Registers on every partition before re-checking, because an append landing between the two
     /// replaces the signal these waits hold and would otherwise only be seen by a later read.
     /// </summary>
-    private static async Task WaitForAppend(ITopicPartition[] partitions, CancellationToken cancellationToken)
+    private static async Task WaitForAppend(ITopicPartition[] partitions, long[] offsets,
+        CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -132,18 +133,22 @@ public sealed class SubscriptionPump(ITopicService topicService)
             waits[i] = partitions[i].WaitForAppend(linked.Token);
         }
 
-        try
+        // Re-checked only now: an append between the caller's look and here has already replaced the
+        // signal these waits hold, so nothing but a second read could see it.
+        if (!HasRecords(partitions, offsets))
         {
             await Task.WhenAny(waits).ConfigureAwait(false);
         }
+
+        // Cancelled so the losers do not hold a registration on every partition for the life of the
+        // subscription, then awaited so a partition that faulted is not left unobserved.
+        await linked.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(waits).ConfigureAwait(false);
+        }
         catch (OperationCanceledException)
         {
-        }
-        finally
-        {
-            // The losing waits would otherwise hold a registration on every partition for as long
-            // as the subscription lives.
-            await linked.CancelAsync().ConfigureAwait(false);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
