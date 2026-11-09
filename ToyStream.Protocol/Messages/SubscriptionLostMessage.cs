@@ -7,7 +7,10 @@ public enum SubscriptionLostReason : byte
     /// <summary>The next record a subscriber wanted has already been evicted.</summary>
     OffsetEvicted = 2,
 
-    ServerStopping = 3
+    ServerStopping = 3,
+
+    /// <summary>There is nowhere to read a committed offset from without a group to key it by.</summary>
+    CommittedOffsetRequiresGroup = 4
 }
 
 /// <summary>

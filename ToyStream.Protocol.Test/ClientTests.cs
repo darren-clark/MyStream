@@ -19,7 +19,7 @@ public class ClientTests
     {
         await using var transport = new InMemoryTransport();
         await using var admin = new ToyStreamAdminClient(transport);
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         Assert.That(transport.ConnectCount, Is.Zero);
     }
@@ -101,7 +101,7 @@ public class ClientTests
     public async Task DisposeWithoutConnectingIsSafe()
     {
         await using var transport = new InMemoryTransport();
-        var producer = new ToyStreamProducer(transport);
+        var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         Assert.That(async () => await producer.DisposeAsync(), Throws.Nothing);
     }
@@ -111,7 +111,7 @@ public class ClientTests
     public async Task ProducerPublishesBody(int bodySize)
     {
         await using var transport = new InMemoryTransport();
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         var body = RandomBytes(bodySize);
         Assert.That(await producer.Publish("events", 0, BodyReader(body), body.Length),
@@ -124,7 +124,7 @@ public class ClientTests
     public async Task ProducerPublishesBodyOfUnknownSize()
     {
         await using var transport = new InMemoryTransport();
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         var body = RandomBytes(2048);
         Assert.That(await producer.Publish("events", 0, BodyReader(body)), Is.EqualTo(PublishResult.Success));
@@ -137,7 +137,7 @@ public class ClientTests
     public async Task ProducerPublishesKeyWithBody(int keySize)
     {
         await using var transport = new InMemoryTransport();
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         var key = RandomBytes(keySize);
         var body = RandomBytes(4096);
@@ -152,7 +152,7 @@ public class ClientTests
     public async Task ProducerPublishesWithoutAKey()
     {
         await using var transport = new InMemoryTransport();
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         var body = RandomBytes(64);
         Assert.That(await producer.Publish("events", 0, BodyReader(body), body.Length),
@@ -165,7 +165,7 @@ public class ClientTests
     public async Task ProducerRejectsAnOversizedKey()
     {
         await using var transport = new InMemoryTransport();
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         var key = RandomBytes(ProtocolConstants.MaxKeySize + 1);
         Assert.That(async () => await producer.Publish("events", 0, key, BodyReader(RandomBytes(16)), 16),
@@ -181,7 +181,7 @@ public class ClientTests
     {
         await using var transport = new InMemoryTransport();
         await using var admin = new ToyStreamAdminClient(transport);
-        await using var producer = new ToyStreamProducer(transport);
+        await using var producer = new ToyStreamProducer(transport, new ProducerOptions());
 
         await admin.ConnectAsync();
         await producer.ConnectAsync();

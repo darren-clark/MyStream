@@ -130,7 +130,15 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
         }
     }
 
-    public void EndOneWayBody() => EndSend();
+    /// <summary>
+    /// Releases the body's pooled chunk buffer as well as the send, so the pair cannot be completed
+    /// in a way that leaks it.
+    /// </summary>
+    public void EndOneWayBody(MessageBodyWriter body)
+    {
+        body.Complete();
+        EndSend();
+    }
 
     /// <summary>
     /// Curried so the result type can be named while the message type is still inferred: C# cannot

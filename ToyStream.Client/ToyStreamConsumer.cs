@@ -16,12 +16,30 @@ public enum StartPosition
 
 public sealed record ConsumerOptions
 {
+    public string[] Topics { get; init; } = [];
     public StartPosition StartAt { get; init; } = StartPosition.Earliest;
 
     /// <summary>How long the server may hold a fetch open before answering with nothing.</summary>
     public int MaxWaitMilliseconds { get; init; } = 5_000;
 
     public int MaxBytes { get; init; } = 1024 * 1024;
+}
+
+public interface IToyStreamConsumer : IAsyncDisposable
+{
+    /// <summary>Everything about the record in hand except its body.</summary>
+    FetchedRecordHeader Current { get; }
+
+    /// <summary>Which of the configured topics the record in hand came from.</summary>
+    Utf8String Topic { get; }
+
+    ReadOnlyMemory<byte> Key { get; }
+
+    ValueTask ConnectAsync(CancellationToken cancellationToken = default);
+
+    ValueTask<bool> MoveNextAsync(CancellationToken cancellationToken = default);
+
+    ValueTask CopyBodyTo(PipeWriter destination, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -32,7 +50,7 @@ public sealed record ConsumerOptions
 /// Not thread safe, and a fetch occupies the connection for as long as it is parked, which is why
 /// this holds its own rather than sharing the admin client's.
 /// </remarks>
-public sealed class ToyStreamConsumer : IAsyncDisposable
+public sealed class ToyStreamConsumer : IToyStreamConsumer
 {
     private readonly ClientConnection<ClientHandler> connection;
     private readonly ConsumerOptions options;
@@ -44,16 +62,17 @@ public sealed class ToyStreamConsumer : IAsyncDisposable
     private FetchEntry[] entries = [];
     private FetchResponse? response;
 
-    public ToyStreamConsumer(IClientTransport transport, IEnumerable<string> topics, ConsumerOptions? options = null)
+    public ToyStreamConsumer(IClientTransport transport, ConsumerOptions options)
     {
-        ArgumentNullException.ThrowIfNull(topics);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Topics);
 
-        this.topics = topics.Select(name => new Utf8String(name)).ToArray();
+        this.topics = options.Topics.Select(name => new Utf8String(name)).ToArray();
         ArgumentOutOfRangeException.ThrowIfZero(this.topics.Length);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(this.topics.Length, ProtocolConstants.MaxTopicsPerFetch);
 
         this.connection = new ClientConnection<ClientHandler>(transport, ConnectionRole.Consumer, default);
-        this.options = options ?? new ConsumerOptions();
+        this.options = options;
         this.entryStart = new int[this.topics.Length];
     }
 

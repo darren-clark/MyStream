@@ -13,10 +13,11 @@ public readonly struct SubscribeHandler(SubscriptionPump pump) : IRequestHandler
     public ValueTask DispatchRequest(SubscribeMessage message, CancellationToken cancellationToken)
     {
         // Copied out of the ref struct: the pump reads it long after this buffer is recycled.
-        var topic = new byte[message.Topic.GetByteCount()];
-        message.Topic.CopyTo(topic);
+        var topic = (Utf8String) message.Topic;
+        var group = (Utf8String) message.Group;
+        var memberId = (Utf8String) message.MemberId;
 
-        pump.Begin(new Utf8String(topic), message.StartOffset);
+        pump.Begin(topic, group, memberId, message.StartOffset);
         return default;
     }
 }

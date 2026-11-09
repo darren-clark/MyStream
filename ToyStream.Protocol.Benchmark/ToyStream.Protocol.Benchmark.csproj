@@ -13,6 +13,9 @@
 
     <ItemGroup>
       <ProjectReference Include="..\ToyStream.Protocol\ToyStream.Protocol.csproj" />
+      <ProjectReference Include="..\ToyStream.Server\ToyStream.Server.csproj" />
+      <ProjectReference Include="..\ToyStream.Server.InMemory\ToyStream.Server.InMemory.csproj" />
+      <ProjectReference Include="..\ToyStream.Client\ToyStream.Client.csproj" />
     </ItemGroup>
 
 </Project>

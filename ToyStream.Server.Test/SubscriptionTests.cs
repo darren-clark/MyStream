@@ -1,6 +1,7 @@
 namespace ToyStream.Server.Test;
 
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Text;
 using ToyStream.Protocol;
@@ -84,7 +85,57 @@ public class SubscriptionTests
         Assert.That(subscriber.Sink.RecordBatches, Is.EqualTo(1));
     }
 
-    private static Subscriber Subscribe(ITopicService service, string topic, SubscribeOffset startOffset)
+    /// <summary>
+    /// A lost wakeup only shows up as a record that arrives when the <em>next</em> publish happens,
+    /// so it needs a sequential probe measuring per-publish latency rather than a single publish.
+    /// On an idle topic that record would never arrive at all.
+    /// </summary>
+    /// <remarks>
+    /// Grouped on purpose: the pump waits on its assignment changing as well as on appends, and that
+    /// second wake source is what this rework added to the loop the bug was originally found in.
+    /// 2,000 rounds was not enough to see the last one; 30,000 was.
+    /// </remarks>
+    [Test]
+    public async Task NoPublishWaitsForTheNextOneToBeNoticed()
+    {
+        const int rounds = 30_000;
+        var budget = TimeSpan.FromMilliseconds(250);
+
+        var service = ServiceWithTopic("events", 1);
+        await using var subscriber = Subscribe(service, "events", SubscribeOffset.Latest, "readers", "a");
+        await subscriber.Sink.Established.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var stalled = 0;
+        var worst = TimeSpan.Zero;
+        for (var round = 1; round <= rounds; round++)
+        {
+            var arrived = subscriber.Sink.Reaching(round);
+            var started = Stopwatch.GetTimestamp();
+
+            await Publish(service, "events", 0, "k", $"body-{round}");
+
+            // Stops at the first one: a lost wakeup leaves the record for the next publish to
+            // deliver, so carrying on would measure the nudge rather than the stall.
+            if (await Task.WhenAny(arrived, Task.Delay(budget)) != arrived)
+            {
+                stalled = round;
+                break;
+            }
+
+            var waited = Stopwatch.GetElapsedTime(started);
+            if (waited > worst)
+            {
+                worst = waited;
+            }
+        }
+
+        Assert.That(stalled, Is.Zero,
+            $"publish {stalled} of {rounds} was not noticed within {budget.TotalMilliseconds} ms " +
+            $"(worst before that {worst.TotalMilliseconds:F1} ms).");
+    }
+
+    private static Subscriber Subscribe(ITopicService service, string topic, SubscribeOffset startOffset,
+        string group = "", string memberId = "")
     {
         var clientToServer = new Pipe();
         var serverToClient = new Pipe();
@@ -102,19 +153,23 @@ public class SubscriptionTests
 
         return new Subscriber(sink, accepting, started, cancellation);
 
-        static async Task Handshake(ConnectionBase connection, PipeWriter output, string topic,
-            SubscribeOffset startOffset, CancellationToken cancellationToken)
+        async Task Handshake(ConnectionBase connection, PipeWriter output, string subscribeTo,
+            SubscribeOffset offset, CancellationToken cancellationToken)
         {
             await ProtocolHandshake.WriteAsync(output, ConnectionRole.Subscriber, cancellationToken);
-            await SendSubscribe(connection, topic, startOffset, cancellationToken);
+            await SendSubscribe(connection, subscribeTo, offset, group, memberId, cancellationToken);
         }
     }
 
     // Split out because a ref struct message cannot be built inside an async method.
     private static ValueTask SendSubscribe(ConnectionBase connection, string topic, SubscribeOffset startOffset,
-        CancellationToken cancellationToken) =>
+        string group, string memberId, CancellationToken cancellationToken) =>
         connection.SendMessage(
-            new SubscribeMessage { Topic = topic, StartOffset = startOffset }, cancellationToken);
+            new SubscribeMessage
+            {
+                Topic = topic, Group = group, MemberId = memberId, StartOffset = startOffset
+            },
+            cancellationToken);
 
     private sealed record Subscriber(
         PushSink Sink, Task Accepting, Task Started, CancellationTokenSource Cancellation) : IAsyncDisposable
@@ -134,6 +189,9 @@ public class SubscriptionTests
         private readonly TaskCompletionSource established =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        private TaskCompletionSource? reached;
+        private int waitingFor = int.MaxValue;
+
         public Task<SubscriptionLostReason> Lost => this.lost.Task;
 
         /// <summary>The empty batch the pump sends once it has latched its offsets.</summary>
@@ -142,6 +200,25 @@ public class SubscriptionTests
         public int RecordBatches { get; private set; }
 
         public void Lose(SubscriptionLostReason reason) => this.lost.TrySetResult(reason);
+
+        /// <summary>
+        /// Signalled rather than polled, because a stall probe measures the wakeup it is looking for
+        /// and a poll interval would be the only latency it could ever report.
+        /// </summary>
+        public Task Reaching(int count)
+        {
+            lock (this.bodies)
+            {
+                if (this.bodies.Count >= count)
+                {
+                    return Task.CompletedTask;
+                }
+
+                this.waitingFor = count;
+                this.reached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                return this.reached.Task;
+            }
+        }
 
         public async Task<string[]> Take(int count)
         {
@@ -180,6 +257,10 @@ public class SubscriptionTests
                 lock (this.bodies)
                 {
                     this.bodies.Add(Encoding.UTF8.GetString(read.Buffer));
+                    if (this.bodies.Count >= this.waitingFor)
+                    {
+                        this.reached?.TrySetResult();
+                    }
                 }
 
                 payload.Reader.AdvanceTo(read.Buffer.End);

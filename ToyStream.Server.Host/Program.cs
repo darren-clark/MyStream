@@ -3,6 +3,7 @@ using ToyStream.Server.Host;
 using ToyStream.Server.InMemory;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.Configure<ToyStreamServerOptions>(builder.Configuration.GetSection("ToyStream"));
 builder.Services.AddSingleton<ConnectionAcceptor>();
 builder.Services.AddSingleton<SocketListener>();
 builder.Services.AddInMemoryServiceProviders();

@@ -8,6 +8,7 @@ public static class DependencyInjectionExtensions
     public static IServiceCollection AddInMemoryServiceProviders(this IServiceCollection services)
     {
         services.AddSingleton<ITopicService, InMemoryTopicService>();
+        services.AddSingleton<IConsumerGroupService, InMemoryConsumerGroupService>();
         return services;
     }
 }

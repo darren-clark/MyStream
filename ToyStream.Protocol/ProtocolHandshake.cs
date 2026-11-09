@@ -25,7 +25,6 @@ public enum HandshakeStatus : byte
     NotToyStream = ProtocolConstants.ResponseFlag | 1,
     UnsupportedVersion = ProtocolConstants.ResponseFlag | 2,
     UnknownRole = ProtocolConstants.ResponseFlag | 3,
-
     /// <summary>The peer never sent a full handshake - it closed, or it stopped talking.</summary>
     Incomplete = ProtocolConstants.ResponseFlag | 4
 }
@@ -96,7 +95,7 @@ public static class ProtocolHandshake
             return (HandshakeStatus.NotToyStream, default);
         }
 
-        if (handshake[Magic.Length] != CurrentVersion)
+        if (handshake[Magic.Length] > CurrentVersion)
         {
             return (HandshakeStatus.UnsupportedVersion, default);
         }

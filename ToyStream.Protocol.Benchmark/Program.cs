@@ -7,6 +7,12 @@ if (args is ["jitdump", ..])
     return;
 }
 
+if (args is ["alloc", ..])
+{
+    await SubscriptionAllocation.RunAsync();
+    return;
+}
+
 // Switcher so a single class can be selected with --filter; args pass through for --job Long etc.
 BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 

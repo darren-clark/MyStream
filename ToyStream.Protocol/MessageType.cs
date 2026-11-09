@@ -13,7 +13,25 @@ public enum MessageType: byte
     PushRecords = 6,
 
     /// <summary>Server to client: the subscription cannot continue, so re-subscribe.</summary>
-    SubscriptionLost = 7
+    SubscriptionLost = 7,
+
+    /// <summary>Client to server: how far a subscriber has processed each of its partitions.</summary>
+    CommitOffsets = 8,
+
+    /// <summary>
+    /// Server to client: these partitions are being taken back. A position in the stream rather than
+    /// a notification - nothing for them follows it, so it fixes what the final offset can be.
+    /// </summary>
+    Revoke = 9,
+
+    /// <summary>Client to server: the answer to a <see cref="Revoke"/>, carrying where it stopped.</summary>
+    RevokeComplete = 10,
+
+    /// <summary>
+    /// Client to server: going on purpose rather than going away. Separates a shutdown from a lost
+    /// connection, which the group would otherwise have to wait out in case it came back.
+    /// </summary>
+    LeaveGroup = 11
 }
 
 /// <summary>Responses: the high bit is set.</summary>

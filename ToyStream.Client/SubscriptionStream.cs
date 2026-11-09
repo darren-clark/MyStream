@@ -18,7 +18,7 @@ public sealed class SubscriptionLostException(SubscriptionLostReason reason)
 /// connection's buffer, so the read loop must stay inside the handler until the reader is done with
 /// it - the same bargain <see cref="IStreamingResponse.BodyDrained"/> makes for a fetch.
 /// </summary>
-internal sealed class SubscriptionStream
+internal sealed class SubscriptionStream(Func<CancellationToken, ValueTask>? batchDrained = null)
 {
     /// <summary>
     /// One at a time: the deliverer waits on <see cref="Batch.Drained"/> anyway, so the bound only
@@ -63,6 +63,13 @@ internal sealed class SubscriptionStream
                 // Releases the read loop, which has been parked inside the handler all this time.
                 this.current = null;
                 batch.Drained.TrySetResult();
+
+                // The one point where the caller has finished everything delivered so far, so it is
+                // where a checkpoint is both cheap and exactly true.
+                if (batchDrained is { } drained)
+                {
+                    await drained(cancellationToken).ConfigureAwait(false);
+                }
             }
 
             try

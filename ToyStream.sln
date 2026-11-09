@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Server.InMemory",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Server.Test", "ToyStream.Server.Test\ToyStream.Server.Test.csproj", "{15886EC2-1E54-41B3-BF28-6149F6CBD628}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToyStream.Client.Example", "ToyStream.Client.Example\ToyStream.Client.Example.csproj", "{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -136,6 +138,18 @@ Global
 		{15886EC2-1E54-41B3-BF28-6149F6CBD628}.Release|x64.Build.0 = Release|Any CPU
 		{15886EC2-1E54-41B3-BF28-6149F6CBD628}.Release|x86.ActiveCfg = Release|Any CPU
 		{15886EC2-1E54-41B3-BF28-6149F6CBD628}.Release|x86.Build.0 = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|x64.Build.0 = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Debug|x86.Build.0 = Debug|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|x64.ActiveCfg = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|x64.Build.0 = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|x86.ActiveCfg = Release|Any CPU
+		{02DF5B2E-ECBD-4CD5-8BE4-42D471E8B030}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

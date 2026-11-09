@@ -44,6 +44,12 @@ public class Utf8String: IEquatable<Utf8String>
     }
 
     public ReadOnlyMemory<byte> Memory => this.value;
+
+    public static Utf8String Empty { get; } = new(string.Empty);
+
+    /// <summary>Ordinal over the encoded bytes, which is the same order every node will compute.</summary>
+    public int CompareTo(Utf8String other) => this.value.Span.SequenceCompareTo(other.value.Span);
+
     public static explicit operator Utf8String(string value) => new(value);
     public static explicit operator string (Utf8String value) => Encoding.UTF8.GetString(value.value.Span);
 }

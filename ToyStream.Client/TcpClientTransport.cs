@@ -4,7 +4,7 @@ using System.IO.Pipelines;
 using System.Net.Sockets;
 using ToyStream.Protocol;
 
-public sealed class TcpClientTransport(ClientOptions options) : IClientTransport
+public sealed class TcpClientTransport(TcpTransportOptions options) : IClientTransport
 {
     public async ValueTask<ITransportConnection> ConnectAsync(CancellationToken cancellationToken)
     {

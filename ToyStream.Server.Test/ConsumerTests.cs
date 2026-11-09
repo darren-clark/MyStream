@@ -195,7 +195,7 @@ public class ConsumerTests
 
         public async Task Publish(string topic, short partition, string key, string body)
         {
-            var producer = new ToyStreamProducer(this.transport);
+            var producer = new ToyStreamProducer(this.transport, new ProducerOptions());
             this.clients.Add(producer);
 
             var payload = Encoding.UTF8.GetBytes(body);
@@ -218,8 +218,8 @@ public class ConsumerTests
 
         public ToyStreamConsumer Consumer(string[] topics, ConsumerOptions? options = null)
         {
-            var consumer = new ToyStreamConsumer(this.transport, topics,
-                options ?? new ConsumerOptions { MaxWaitMilliseconds = 0 });
+            var consumer = new ToyStreamConsumer(this.transport,
+                (options ?? new ConsumerOptions { MaxWaitMilliseconds = 0 }) with { Topics = topics });
             this.clients.Add(consumer);
             return consumer;
         }

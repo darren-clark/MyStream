@@ -6,12 +6,35 @@ using ToyStream.Protocol.Messages;
 using ToyStream.Protocol.Responses;
 using ToyStream.Shared;
 
+/// <summary>Where <see cref="ToyStreamProducer.Publish(ReadOnlyMemory{byte},PipeReader,long?,CancellationToken)"/> sends, for a producer with one destination.</summary>
+public sealed record ProducerOptions
+{
+    public string Topic { get; init; } = string.Empty;
+
+    public short Partition { get; init; }
+}
+
+public interface IToyStreamProducer : IAsyncDisposable
+{
+    ValueTask ConnectAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Publishes to the configured topic and partition.</summary>
+    ValueTask<PublishResult> Publish(ReadOnlyMemory<byte> key, PipeReader body, long? size = null,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<PublishResult> Publish(string topic, short partition, PipeReader body, long? size = null,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<PublishResult> Publish(string topic, short partition, ReadOnlyMemory<byte> key, PipeReader body,
+        long? size = null, CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// Publishes event bodies. Holds its own connection because a streamed publish occupies the
 /// connection for the whole body, which would otherwise reject any concurrent admin request.
 /// </summary>
 /// <remarks>Not thread safe: the underlying connection allows one outstanding request.</remarks>
-public sealed class ToyStreamProducer(IClientTransport transport) : IAsyncDisposable
+public sealed class ToyStreamProducer(IClientTransport transport, ProducerOptions options) : IToyStreamProducer, IAsyncDisposable
 {
     private readonly ClientConnection<ClientHandler> connection = new(transport, ConnectionRole.Producer, default);
 
@@ -21,6 +44,17 @@ public sealed class ToyStreamProducer(IClientTransport transport) : IAsyncDispos
     /// </summary>
     public async ValueTask ConnectAsync(CancellationToken cancellationToken = default) =>
         await this.connection.EnsureConnected(cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Publishes to the destination in <see cref="ProducerOptions"/>.</summary>
+    public async ValueTask<PublishResult> Publish(ReadOnlyMemory<byte> key, PipeReader body,
+        long? size = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(options.Topic);
+
+        var connected = await this.connection.EnsureConnected(cancellationToken).ConfigureAwait(false);
+        return await SendPublish(connected, options.Topic, options.Partition, key, body, size, cancellationToken)
+            .ConfigureAwait(false);
+    }
 
     /// <param name="size">Body length when known, letting the server size its buffer; null streams it.</param>
     public async ValueTask<PublishResult> Publish(string topic, short partition, PipeReader body,

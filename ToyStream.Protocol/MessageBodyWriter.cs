@@ -42,6 +42,11 @@ public sealed class MessageBodyWriter : PipeWriter
 
     public override void Advance(int bytes) => this.pending += bytes;
 
+    /// <summary>Lets a writer pace its own flushes by how much has built up rather than per item.</summary>
+    public override bool CanGetUnflushedBytes => true;
+
+    public override long UnflushedBytes => this.pending;
+
     public override ValueTask<FlushResult> FlushAsync(CancellationToken cancellationToken = default)
     {
         EmitChunk();

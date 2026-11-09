@@ -17,7 +17,18 @@ public readonly struct FetchedRecordWriter(MessageBodyWriter body)
     /// <summary>The fields in front of a record's body, all fixed width but for the key.</summary>
     internal const int PreludeSize = sizeof(short) + sizeof(short) + sizeof(long) + sizeof(long) + sizeof(int);
 
-    /// <summary>Flushed per record, which is what paces a consumer that cannot keep up.</summary>
+    /// <summary>
+    /// How much is allowed to build up before a flush. Small enough that a reader starts work well
+    /// before a backlog has finished writing, and that an unread pipe stops the writer rather than
+    /// growing - which is what flushing was for.
+    /// </summary>
+    private const int FlushThreshold = 4 * 1024;
+
+    /// <summary>
+    /// Paced by how much has built up rather than flushed per record. A flush the reader has to wake
+    /// for costs it a suspended state machine at every frame of the parse, and per record that was
+    /// most of what delivering one allocated.
+    /// </summary>
     public ValueTask<FlushResult> WriteRecord(in FetchedRecord record, CancellationToken cancellationToken)
     {
         var writer = new PrimitiveWriter(body);
@@ -29,7 +40,8 @@ public readonly struct FetchedRecordWriter(MessageBodyWriter body)
         writer.Write(new RefBytes(record.Key), ProtocolConstants.MaxKeySize);
         WriteBody(writer, record.Body);
 
-        return body.FlushAsync(cancellationToken);
+        // The body is always flushed when it completes, so holding back cannot strand a record.
+        return body.UnflushedBytes >= FlushThreshold ? body.FlushAsync(cancellationToken) : default;
     }
 
     public ValueTask<FlushResult> CompleteAsync(CancellationToken cancellationToken)

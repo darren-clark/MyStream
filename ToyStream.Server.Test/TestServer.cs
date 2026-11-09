@@ -11,11 +11,27 @@ internal sealed class PipePair(PipeReader input, PipeWriter output) : ITransport
 
     public PipeWriter Output => output;
 
-    public ValueTask DisposeAsync() => default;
+    /// <summary>
+    /// Completes both halves rather than doing nothing, so a peer going away looks the way a closed
+    /// socket does. A subscriber's group membership is a connection, so it depends on this.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        await input.CompleteAsync();
+        await output.CompleteAsync();
+    }
 }
 
 internal static class TestServer
 {
     public static ConnectionAcceptor Serving(ITopicService topics) =>
-        new(new ServiceCollection().AddSingleton(topics).BuildServiceProvider());
+        Serving(topics, new InMemory.InMemoryConsumerGroupService());
+
+    public static ConnectionAcceptor Serving(ITopicService topics, IConsumerGroupService groups,
+        ConsumerGroupCoordinator? coordinator = null) =>
+        new(new ServiceCollection()
+            .AddSingleton(topics)
+            .AddSingleton(groups)
+            .AddSingleton(coordinator ?? new ConsumerGroupCoordinator(groups))
+            .BuildServiceProvider());
 }
