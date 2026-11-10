@@ -18,6 +18,7 @@ public sealed class FetchedRecordReader(PipeReader body)
     /// <summary>Doubles as the scratch for a body's chunk headers, which are read after it.</summary>
     private readonly byte[] prelude = new byte[FetchedRecordWriter.PreludeSize];
 
+    private PipeReader body = body;
     private byte[] key = [];
     private int keyLength;
     private bool bodyPending;
@@ -26,6 +27,19 @@ public sealed class FetchedRecordReader(PipeReader body)
     public FetchedRecordHeader Current { get; private set; }
 
     public ReadOnlyMemory<byte> Key => this.key.AsMemory(0, this.keyLength);
+
+    /// <summary>
+    /// Points the reader at the next body, keeping the buffers it has already grown. A subscription
+    /// is a stream of bodies, so one reader per connection costs less than one per batch.
+    /// </summary>
+    public void Reset(PipeReader next)
+    {
+        this.body = next;
+        this.keyLength = 0;
+        this.bodyPending = false;
+        this.finished = false;
+        Current = default;
+    }
 
     /// <summary>
     /// Advances to the next record, skipping the body of the current one if it was not read. False

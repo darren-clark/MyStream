@@ -31,22 +31,23 @@ internal static class SubscriptionAllocation
         Console.WriteLine("Storage is a stand-in, so what is counted is the pump, the wire and the client.");
         Console.WriteLine();
 
-        Console.WriteLine("  one record per batch - every per-batch cost charged to one record");
-        await Measure("no group", batch: 1, grouped: false, autoCommit: false);
-        await Measure("group", batch: 1, grouped: true, autoCommit: false);
-        await Measure("group, autocommit", batch: 1, grouped: true, autoCommit: true);
+        Console.WriteLine("  by batch size - fit B/record = perRecord + perBatch/batch to separate the two");
+        await Measure("1 per batch", batch: 1, grouped: false, autoCommit: false);
+        await Measure("10 per batch", batch: 10, grouped: false, autoCommit: false);
+        await Measure("100 per batch", batch: 100, grouped: false, autoCommit: false);
+        await Measure("1000 per batch", batch: 1000, grouped: false, autoCommit: false);
 
         Console.WriteLine();
-        Console.WriteLine("  100 records per batch - what a loaded subscriber actually sees");
+        Console.WriteLine("  what a consumer group costs, at a realistic batch size");
         await Measure("no group", batch: 100, grouped: false, autoCommit: false);
         await Measure("group", batch: 100, grouped: true, autoCommit: false);
         await Measure("group, autocommit", batch: 100, grouped: true, autoCommit: true);
 
         Console.WriteLine();
         Console.WriteLine("  by record size, to tell framing overhead from payload handling");
-        await Measure("empty", batch: 1, grouped: false, autoCommit: false, body: 0, key: 0);
-        await Measure("21 B body", batch: 1, grouped: false, autoCommit: false, body: 21, key: 1);
-        await Measure("4 KB body", batch: 1, grouped: false, autoCommit: false, body: 4096, key: 1);
+        await Measure("empty", batch: 100, grouped: false, autoCommit: false, body: 0, key: 0);
+        await Measure("21 B body", batch: 100, grouped: false, autoCommit: false, body: 21, key: 1);
+        await Measure("4 KB body", batch: 100, grouped: false, autoCommit: false, body: 4096, key: 1);
 
         Console.WriteLine();
         Console.WriteLine("  by layer, to find which half of the stack it is in");
@@ -228,13 +229,16 @@ internal static class SubscriptionAllocation
         await rig.Run(Warmup, batch);
 
         var started = Stopwatch.GetTimestamp();
+        var waitsBefore = rig.Waits;
         var before = GC.GetTotalAllocatedBytes(precise: true);
         await rig.Run(Measured, batch);
         var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
         var elapsed = Stopwatch.GetElapsedTime(started);
+        var waits = rig.Waits - waitsBefore;
 
         Console.WriteLine($"    {label,-20} {(double)allocated / Measured,7:F1} B/record" +
-                          $"   {elapsed.TotalMicroseconds / Measured,6:F2} us/record");
+                          $"   {elapsed.TotalMicroseconds / Measured,6:F2} us/record" +
+                          $"   {(double)waits / Measured,6:F3} pump waits/record");
     }
 
     private sealed class Rig : IAsyncDisposable
@@ -243,6 +247,9 @@ internal static class SubscriptionAllocation
 
         private ProbePartition partition = null!;
         private ToyStreamSubscriber subscriber = null!;
+
+        /// <summary>How many times the pump parked, which is the cost a batch of one cannot share.</summary>
+        public long Waits => this.partition.Waits;
 
         public static async Task<Rig> Create(bool grouped, bool autoCommit, int body = 21, int key = 1)
         {
@@ -306,6 +313,10 @@ internal static class SubscriptionAllocation
 
         private TaskCompletionSource appended = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private long available;
+        private long waits;
+
+        /// <summary>One per <c>WaitForWork</c>, so it counts how often the pump had to park.</summary>
+        public long Waits => Interlocked.Read(ref this.waits);
 
         /// <summary>Swapped before the old one completes, so a waiter always holds a live signal.</summary>
         public void Append()
@@ -338,6 +349,8 @@ internal static class SubscriptionAllocation
         /// </summary>
         public Task WaitForAppend(CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref this.waits);
+
             var pending = Volatile.Read(ref this.appended).Task;
             return pending.IsCompleted ? pending : pending.WaitAsync(cancellationToken);
         }

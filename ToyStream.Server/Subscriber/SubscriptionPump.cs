@@ -143,6 +143,9 @@ public sealed class SubscriptionPump(
     {
         var owned = new bool[partitions.Length];
         var cursors = new long[partitions.Length];
+
+        // Reused across parks: every partition's wait plus the assignment signal.
+        var waits = new Task[partitions.Length + 1];
         short[]? reconciled = null;
         var established = false;
 
@@ -183,7 +186,7 @@ public sealed class SubscriptionPump(
                 continue;
             }
 
-            await WaitForWork(partitions, owned, cursors, changed, cancellationToken).ConfigureAwait(false);
+            await WaitForWork(partitions, owned, cursors, changed, waits, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -296,38 +299,52 @@ public sealed class SubscriptionPump(
     /// Registers on every partition before re-checking, because an append landing between the two
     /// replaces the signal these waits hold and would otherwise only be seen by a later read.
     /// </summary>
+    /// <remarks>
+    /// The caller owns <paramref name="waits"/> so parking does not allocate one per pass, and the
+    /// assignment signal goes in alongside the appends so a single combinator covers both reasons
+    /// the pump wakes.
+    /// </remarks>
     private static async Task WaitForWork(ITopicPartition[] partitions, bool[] owned, long[] cursors,
-        Task changed, CancellationToken cancellationToken)
+        Task changed, Task[] waits, CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var waits = new List<Task>(partitions.Length);
+        var count = 0;
         for (var i = 0; i < partitions.Length; i++)
         {
             if (owned[i])
             {
-                waits.Add(partitions[i].WaitForAppend(linked.Token));
+                waits[count++] = partitions[i].WaitForAppend(linked.Token);
             }
         }
+
+        var appends = count;
+        waits[count++] = changed;
 
         // Re-checked only now: an append between the caller's look and here has already replaced the
         // signal these waits hold, so nothing but a second read could see it.
         if (!HasRecords(partitions, owned, cursors) && !changed.IsCompleted)
         {
-            var appended = waits.Count > 0 ? Task.WhenAny(waits) : changed;
-            await Task.WhenAny(appended, changed).ConfigureAwait(false);
+            await Task.WhenAny(waits.AsSpan(0, count)).ConfigureAwait(false);
         }
 
         // Cancelled so the losers do not hold a registration on every partition for the life of the
-        // subscription, then awaited so a partition that faulted is not left unobserved.
+        // subscription. Observed one at a time rather than through WhenAll, which would allocate a
+        // task of its own for something that is almost always already complete.
         await linked.CancelAsync().ConfigureAwait(false);
-        try
+        for (var i = 0; i < appends; i++)
         {
-            await Task.WhenAll(waits).ConfigureAwait(false);
+            try
+            {
+                await waits[i].ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
-        catch (OperationCanceledException)
-        {
-        }
+
+        // Cleared so a parked pump does not pin the batch of tasks it last waited on.
+        waits.AsSpan(0, count).Clear();
 
         cancellationToken.ThrowIfCancellationRequested();
     }
