@@ -1,0 +1,149 @@
+using System.Buffers;
+using System.IO.Pipelines;
+
+namespace MyStream.Protocol;
+
+/// <summary>
+/// The read loop, shared by every role. Request routing lives in THandler, and because THandler is a
+/// struct the JIT specialises this type per role, which devirtualises the dispatch call. Responses
+/// never reach the handler - the base matches them to the request that is outstanding.
+/// </summary>
+public sealed class Connection<THandler> : ConnectionBase where THandler : struct, IConnectionHandler
+{
+    private readonly PipeReader reader;
+
+    // Not readonly: a constraint cannot say "readonly struct", so an interface call on a readonly
+    // field of THandler is defensively copied.
+    private THandler handler;
+
+    public Connection(PipeReader reader, PipeWriter writer, THandler handler)
+        : base(reader, writer)
+    {
+        this.reader = reader;
+        this.handler = handler;
+    }
+
+    public override async Task Start(CancellationToken cancellationToken)
+    {
+        await Task.Yield();
+        try
+        {
+            var buffer = ReadOnlySequence<byte>.Empty;
+            var bytesNeeded = 1;
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int bytesToRead = (int)buffer.Length + bytesNeeded;
+
+                var result = await this.reader.ReadAtLeastAsync(bytesToRead, cancellationToken)
+                    .ConfigureAwait(false);
+
+                buffer = result.Buffer;
+                // Our input is gone.
+                if (result.IsCompleted && buffer.Length < bytesToRead)
+                {
+                    break;
+                }
+
+                var wroteResponse = false;
+                var streamed = false;
+                while (true)
+                {
+                    var primitiveReader = new PrimitiveReader(buffer);
+                    if (!primitiveReader.TryReadByte(out var typeByte, out bytesNeeded))
+                    {
+                        break;
+                    }
+
+                    // Handle responses.
+                    if (ProtocolConstants.IsResponse(typeByte))
+                    {
+                        var answered = this.TryParseAndComplete((ResponseType)typeByte, ref primitiveReader);
+                        if (!answered.IsParsed)
+                        {
+                            bytesNeeded = answered.BytesNeeded;
+                            break;
+                        }
+
+                        if (!answered.OwnsBody)
+                        {
+                            buffer = primitiveReader.Remaining;
+                            continue;
+                        }
+
+                        // The awaiting caller holds the buffer until it says it is done with it.
+                        await answered.BodyDrained.ConfigureAwait(false);
+                        buffer = await this.BodyReader.FinishAsync(cancellationToken).ConfigureAwait(false);
+                        streamed = true;
+                        break;
+                    }
+                    
+                    // Incoming request path.
+                    var dispatch = new Dispatcher(primitiveReader, this.Writer,
+                        this.BodyReader, cancellationToken);
+
+                    var dispatched = this.handler.TryParseAndDispatch((MessageType)typeByte, ref dispatch);
+
+                    if (!dispatched.IsSuccess)
+                    {
+                        bytesNeeded = dispatched.BytesNeeded;
+                        break;
+                    }
+
+                    if (dispatched.OwnsBody)
+                    {
+                        // The handler may already have refilled the pipe and recycled the segments
+                        // the dispatch reader points into, so the body reader's buffer is the only
+                        // valid one from here.
+                        await dispatched.Task.ConfigureAwait(false);
+                        buffer = await this.BodyReader
+                            .FinishAsync(cancellationToken)
+                            .ConfigureAwait(false);
+
+                        wroteResponse |= dispatched.WroteResponse;
+                        streamed = true;
+                        break;
+                    }
+
+                    buffer = dispatch.Remaining;
+
+                    wroteResponse |= dispatched.WroteResponse;
+                    if (!dispatched.Task.IsCompleted)
+                    {
+                        await dispatched.Task.ConfigureAwait(false);
+                    }
+                }
+
+                if (streamed)
+                {
+                    // What FinishAsync returned is the live buffer, so examining it would hide a
+                    // message already sitting in it behind a wait for bytes that never come.
+                    this.reader.AdvanceTo(buffer.Start, buffer.Start);
+                    buffer = ReadOnlySequence<byte>.Empty;
+                    bytesNeeded = 1;
+                }
+                else
+                {
+                    // Advance only once every handler has consumed its message, which is a view over this buffer.
+                    this.reader.AdvanceTo(buffer.Start, buffer.End);
+                }
+
+                // One flush per read rather than per message, so a batch of pipelined requests pays once.
+                if (wroteResponse)
+                {
+                    var flush = this.Writer.FlushAsync(cancellationToken);
+                    if (flush.IsCompletedSuccessfully)
+                    {
+                        flush.GetAwaiter().GetResult();
+                    }
+                    else
+                    {
+                        await flush.ConfigureAwait(false);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+}

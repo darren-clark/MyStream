@@ -1,0 +1,25 @@
+<Project>
+  <!-- Enable Central Package Management -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <!-- Centralized Package Versions -->
+  <ItemGroup>
+    <!-- Code Coverage -->
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <!-- Core libs -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
+    <!-- Testing -->
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.1" />
+    <!-- Testing Tools -->
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="NBuilder" Version="6.1.0" />
+    <!-- Testing Frameworks -->
+    <PackageVersion Include="NUnit" Version="4.6.0" />
+    <PackageVersion Include="NUnit.Analyzers" Version="4.13.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
+  </ItemGroup>
+</Project>

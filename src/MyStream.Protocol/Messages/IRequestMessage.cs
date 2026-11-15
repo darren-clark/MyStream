@@ -1,0 +1,28 @@
+﻿namespace MyStream.Protocol.Messages;
+
+public interface IRequestMessage
+{
+    internal static abstract MessageType Type { get; }
+}
+
+/// <summary>Marks a request whose header is followed by a streamed body on the wire.</summary>
+public interface IStreamingRequestMessage : IRequestMessage;
+
+// Request message with no expected response.
+public interface IRequestMessage<TSelf> : IMessage<TSelf>, IRequestMessage
+    where TSelf : struct, IRequestMessage<TSelf>, allows ref struct;
+
+// Streaming request message with no expected response.
+public interface IStreamingRequestMessage<TSelf>: IMessage<TSelf>, IStreamingRequestMessage
+    where TSelf : struct, IStreamingRequestMessage<TSelf>, allows ref struct;
+
+// Request message with a response
+public interface IRequestMessage<TSelf, TResponseMessage> : IMessage<TSelf>, IRequestMessage
+    where TSelf : struct, IRequestMessage<TSelf, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
+
+// Streaming request message with a response
+public interface IStreamingRequestMessage<TSelf, TResponseMessage> :IMessage<TSelf>, IStreamingRequestMessage
+    where TSelf : struct, IStreamingRequestMessage<TSelf, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
+
