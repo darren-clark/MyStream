@@ -5,6 +5,8 @@ namespace MyStream.Server.Topics;
 
 public interface ITopicPartition
 {
+    short PartitionId { get; }
+    
     IEventWriter GetEventWriter(RefBytes key, long? size);
 
     PartitionDescription Describe();

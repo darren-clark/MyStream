@@ -1,15 +1,18 @@
 ﻿using System.IO.Pipelines;
 
 using MyStream.Protocol;
+using MyStream.Protocol.Messages;
 
 namespace MyStream.Server.Roles.Producer;
 
-public struct ProducerHandler: IConnectionHandler
+internal struct ProducerHandler(ProducerConnection connection): IConnectionHandler
 {
     public DispatchResult TryParseAndDispatch(MessageType messageType, ref Dispatcher dispatch)
-    {
-        throw new NotImplementedException();
-    }
+        => messageType switch
+        {
+            MessageType.InitProducer => dispatch.Request(connection.InitHandler),
+            _ => dispatch.Unexpected(messageType)
+        };
 
     public Task<HandshakeStatus> Initialize(PipeReader reader, CancellationToken cancellationToken)
     {

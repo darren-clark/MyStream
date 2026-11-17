@@ -8,6 +8,17 @@ using MyStream.Protocol.Primitives;
 
 namespace MyStream.Protocol;
 
+public delegate ValueTask RequestHandler<in TRequestMessage, TResponseMessage>(TRequestMessage request,
+    ResponseWriter<TResponseMessage> responseWriter, CancellationToken cancellationToken)
+    where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
+
+public delegate ValueTask StreamingRequestHandler<TRequestMessage, TResponseMessage>(
+    StreamingMessage<TRequestMessage> request,
+    ResponseWriter<TResponseMessage> responseWriter, CancellationToken cancellationToken)
+    where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
+
 /// <summary>
 /// Everything a dispatch needs, bundled so a handler's switch names only the message types it
 /// serves. Passed by ref and owns the reader rather than referencing one, because a ref field
@@ -47,14 +58,25 @@ public ref struct Dispatcher
         return DispatchResult.Dispatched(handler.DispatchRequest(request, responseWriter, this.cancellationToken));
     }
     
+    public DispatchResult Request<TRequest, TResponse>(RequestHandler<TRequest, TResponse> handler)
+        where TRequest : struct, IRequestMessage<TRequest, TResponse>, allows ref struct
+        where TResponse : struct, IResponseMessage<TResponse>, allows ref struct
+    {
+        if (!TRequest.TryRead(ref this.reader, out var request, out var bytesNeeded))
+        {
+            return DispatchResult.Insufficient(bytesNeeded);
+        }
+        var responseWriter = new ResponseWriter<TResponse>(this.writer);
+        return DispatchResult.Dispatched(handler(request, responseWriter, this.cancellationToken));
+    }
+    
     /// <summary>
     /// As <see cref="Request{THandler,TRequest,TResponse}"/>, but the message is given a body to read.
     /// The connection owns the body either way: whatever the handler leaves is drained before the next
     /// message, so the handler cannot desynchronise the stream.
     /// </summary>
-    public DispatchResult StreamingRequest<THandler, TRequest, TResponse>(THandler handler)
+    public DispatchResult StreamingRequest<TRequest, TResponse>(StreamingRequestHandler<TRequest, TResponse> handler)
         where TRequest : struct, IStreamingRequestMessage<TRequest, TResponse>, allows ref struct
-        where THandler : struct, IStreamingRequestHandler<TRequest, TResponse>
         where TResponse : struct, IResponseMessage<TResponse>, allows ref struct
     {
         if (!TRequest.TryRead(ref this.reader, out var request, out var bytesNeeded))
@@ -79,7 +101,7 @@ public ref struct Dispatcher
         };
 
         var responseWriter = new ResponseWriter<TResponse>(this.writer);
-        var dispatched = handler.DispatchRequest(message, responseWriter, this.cancellationToken);
+        var dispatched = handler(message, responseWriter, this.cancellationToken);
         return DispatchResult.Streaming(dispatched);
     }
 

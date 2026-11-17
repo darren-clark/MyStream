@@ -4,7 +4,7 @@
 public enum MessageType: byte
 {
     CreateTopic = 1,
-    PublishEvent = 2,
+    ProduceEvent = 2,
     Subscribe = 3,
     DescribeTopic = 4,
     Fetch = 5,

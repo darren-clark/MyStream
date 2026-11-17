@@ -16,4 +16,5 @@ public interface ITopic
     bool TryGetPartition(short partitionId, [NotNullWhen(true)] out ITopicPartition? topicPartition);
 
     void Describe(Span<PartitionDescription> destination);
+    IReadOnlyCollection<ITopicPartition> GetOwnedPartitions();
 }
