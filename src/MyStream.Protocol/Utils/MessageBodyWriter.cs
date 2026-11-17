@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 
 using MyStream.Protocol;
+using MyStream.Protocol.Primitives;
 
 namespace MyStream.Protocol;
 

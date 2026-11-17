@@ -5,6 +5,7 @@ using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 
 using MyStream.Protocol.Messages;
+using MyStream.Protocol.Primitives;
 using MyStream.Protocol.Responses;
 
 namespace MyStream.Protocol;
@@ -68,7 +69,7 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
         try
         {
             var primitiveWriter = new PrimitiveWriter(writer);
-            primitiveWriter.Write(TRequestMessage.Type);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
             requestMessage.Write(primitiveWriter);
         }
         catch
@@ -128,7 +129,7 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
             this.parser = TryParseAndComplete<TResponseMessage, TResponse>;
 
             var primitiveWriter = new PrimitiveWriter(writer);
-            primitiveWriter.Write(TRequestMessage.Type);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
             requestMessage.Write(primitiveWriter);
         }
         catch
@@ -172,7 +173,7 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
         try
         {
             var primitiveWriter = new PrimitiveWriter(writer);
-            primitiveWriter.Write(TRequestMessage.Type);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
             message.Header.Write(primitiveWriter);
             WriteDeclaredSize(primitiveWriter, message.Size);
         }
@@ -216,7 +217,7 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
             this.parser = TryParseAndComplete<TResponseMessage, TResponse>;
 
             var primitiveWriter = new PrimitiveWriter(writer);
-            primitiveWriter.Write(TRequestMessage.Type);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
             message.Header.Write(primitiveWriter);
             WriteDeclaredSize(primitiveWriter, message.Size);
         }
@@ -325,7 +326,7 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
             this.parser = ParseAndStream<TResponseMessage, TResponse>;
 
             var primitiveWriter = new PrimitiveWriter(writer);
-            primitiveWriter.Write(TRequestMessage.Type);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
             requestMessage.Write(primitiveWriter);
         }
         catch

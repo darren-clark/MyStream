@@ -1,75 +1,78 @@
-﻿using System.Diagnostics;
+﻿using MyStream.Protocol.Primitives;
 
 namespace MyStream.Protocol.Messages;
 
 public readonly ref struct InitProducerMessage: IRequestMessage<InitProducerMessage>
 {
-    private readonly RefList<RefUtf8String> topics;
+    private readonly PrimitiveList<Utf8String,RefUtf8String> topics;
 
-    private InitProducerMessage(short count, RefList<RefUtf8String> topics)
+    private InitProducerMessage(PrimitiveList<Utf8String, RefUtf8String> topics)
     {
         this.topics = topics;
     }
     
-    static bool IMessage<InitProducerMessage>.TryRead<TReader>(ref TReader reader, out InitProducerMessage message, out int bytesToRead)
+    static bool IProtocolPrimitive<InitProducerMessage>.TryRead<TReader>(scoped ref TReader reader, out InitProducerMessage message, out int bytesToRead)
     {
-        if (!reader.TryReadInt16(out var count, out bytesToRead))
+        if (!reader.TryReadPrimitive<PrimitiveList<Utf8String, RefUtf8String>>(out var topics, out bytesToRead))
         {
             message = default;
             return false;
         }
-        
-        var tryReader = reader;
-        for (var i = 0; i < count; i++)
-        {
-            if (!tryReader.TryReadUtf8String(out var topic, out bytesToRead))
-            {
-                message = default;
-                return false;
-            }
-        }
-
-        var stringSize = tryReader.Consumed - reader.Consumed;        
-        
-        var read = reader.TryReadExact((int)stringSize, out var topics, out bytesToRead);
-        Debug.Assert(read);
-
-        message =  new InitProducerMessage (count, topics);
+        message =  new InitProducerMessage (topics);
         return true;
     }
 
     public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
     {
-        throw new NotImplementedException();
+        writer.Write(topics);
     }
 
     public static MessageType Type => MessageType.InitProducer;
 }
 
-public readonly ref struct InitProducerResponseMessage: IResponseMessage<InitProducerResponseMessage>
-{
-    private readonly Span<OwnedPartition> ownedPartitions;
-    
-    public static bool TryRead<TReader>(ref TReader reader, out InitProducerResponseMessage message, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
-    {
-        if (!reader.TryReadInt16(out var count, out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-        
-        var tryReader = reader;
-        if (!reader.TryRead)
-        
-        
-    }
+ public readonly ref struct InitProducerResponseMessage: IResponseMessage<InitProducerResponseMessage>
+ {
+     public required PrimitiveList<OwnedPartition>  OwnedPartitions { get; init; }
 
-    public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
-    {
-        throw new NotImplementedException();
-    }
+     public static bool TryRead<TReader>(scoped ref TReader reader, out InitProducerResponseMessage value, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
+     {
+         if (reader.TryReadPrimitive(out PrimitiveList<OwnedPartition> ownedPartitions, out bytesToRead))
+         {
+             value = new InitProducerResponseMessage { OwnedPartitions = ownedPartitions };
+             return true;
+         }
+         
+         value = default;
+         return false;
+     }
+     
+     public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+      => writer.Write(OwnedPartitions);
 
-    public static ResponseType Type => ResponseType.InitProducer;
-}
+     public static ResponseType Type => ResponseType.InitProducer;
 
-public record struct OwnedPartition(int PartitionIndex, short Partition);
+
+
+ }
+
+     public readonly record struct OwnedPartition(short PartitionIndex, short Partition) : IProtocolPrimitive<OwnedPartition>
+     {
+         public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+         {
+             writer.Write(PartitionIndex);
+             writer.Write(Partition);
+         }
+
+         public static bool TryRead<TReader>(scoped ref TReader reader, out OwnedPartition value, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
+         {
+             if (reader.TryReadInt16(out var partitionIndex, out bytesToRead) &&
+                 reader.TryReadInt16(out var partition, out bytesToRead))
+             {
+                 value = new OwnedPartition(partitionIndex, partition);
+                 return true;
+             }
+
+             value = default;
+             return false;
+         }
+     }

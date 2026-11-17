@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 
 using MyStream.Protocol.Messages;
+using MyStream.Protocol.Primitives;
 
 namespace MyStream.Protocol;
 

@@ -1,3 +1,5 @@
+using MyStream.Protocol.Primitives;
+
 namespace MyStream.Protocol.Messages;
 
 public readonly ref struct DescribeTopicRequestMessage:IRequestMessage<DescribeTopicRequestMessage, DescribeTopicResponseMessage>
@@ -6,16 +8,14 @@ public readonly ref struct DescribeTopicRequestMessage:IRequestMessage<DescribeT
 
     public required RefUtf8String TopicName { get; init; }
     
-    static bool IMessage<DescribeTopicRequestMessage>.TryRead<TReader>(ref TReader reader, out DescribeTopicRequestMessage message, out int bytesToRead)
+    static bool IProtocolPrimitive<DescribeTopicRequestMessage>.TryRead<TReader>(scoped ref TReader reader, out DescribeTopicRequestMessage message, out int bytesToRead)
     {
-        var tryReader = reader;
-        if (!tryReader.TryReadUtf8String(out var topicName, out bytesToRead))
+        if (!reader.TryReadPrimitive<RefUtf8String>(out var topicName, out bytesToRead))
         {
             message = default;
             return false;
         }
-
-        reader = tryReader;
+        
         message = new DescribeTopicRequestMessage { TopicName = topicName };
         return true;
     }
@@ -29,15 +29,14 @@ public readonly ref struct DescribeTopicRequestMessage:IRequestMessage<DescribeT
 public readonly ref struct DescribeTopicResponseMessage:IResponseMessage<DescribeTopicResponseMessage>
 {
     public required DescribeTopicResult Result { get; init; }
+    public required PrimitiveList<PartitionDescription> Partitions { get; init; }
 
-    public required PartitionDescriptions Partitions { get; init; }
 
     public static ResponseType Type => ResponseType.DescribeTopic;
 
-    static bool IMessage<DescribeTopicResponseMessage>.TryRead<TReader>(ref TReader reader, out DescribeTopicResponseMessage message, out int bytesToRead)
+    static bool IProtocolPrimitive<DescribeTopicResponseMessage>.TryRead<TReader>(scoped ref TReader reader, out DescribeTopicResponseMessage message, out int bytesToRead)
     {
-        var tryReader = reader;
-        if (!tryReader.TryReadEnum<DescribeTopicResult>(out var result, out bytesToRead))
+        if (!reader.TryReadEnum<DescribeTopicResult>(out var result, out bytesToRead))
         {
             message = default;
             return false;
@@ -46,51 +45,23 @@ public readonly ref struct DescribeTopicResponseMessage:IResponseMessage<Describ
         // Mirrors Write: a failure carries no partitions, so no count follows it either.
         if (result != DescribeTopicResult.Success)
         {
-            reader = tryReader;
             message = new DescribeTopicResponseMessage { Result = result, Partitions = default };
             return true;
         }
 
-        if (result != DescribeTopicResult.Success)
+        if (reader.TryReadPrimitive<PrimitiveList<PartitionDescription>>(out var partitions, out bytesToRead))
         {
-            message = new DescribeTopicResponseMessage
-            {
-                Result = result,
-                Partitions = default
-            };
+            message = new DescribeTopicResponseMessage { Result = result, Partitions = partitions };
+            return true;
         }
         
-        if (!tryReader.TryReadInt16(out var partitionCount, out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-
-        // Unsigned so a negative count is rejected by the same comparison as an oversized one.
-        if ((uint)partitionCount > ProtocolConstants.MaxPartitions)
-        {
-            ThrowHelpers.ThrowInvalidLength(partitionCount, ProtocolConstants.MaxPartitions);
-        }
-
-        if (!tryReader.TryReadExact(partitionCount * PartitionDescriptions.RecordSize, out var records,
-                out bytesToRead))
-        {
-            message = default;
-            return false;
-        }
-
-        reader = tryReader;
-        message = new DescribeTopicResponseMessage
-        {
-            Result = result,
-            Partitions = new PartitionDescriptions(records, partitionCount)
-        };
-        return true;
+        message = default;
+        return false;
     }
 
     public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
     {
-        writer.Write(Result);
+        writer.WriteEnum(Result);
         if (Result == DescribeTopicResult.Success)
         {
             Partitions.Write(writer);

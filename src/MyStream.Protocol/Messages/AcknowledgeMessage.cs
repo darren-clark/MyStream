@@ -1,4 +1,6 @@
-﻿namespace MyStream.Protocol.Messages;
+﻿using MyStream.Protocol.Primitives;
+
+namespace MyStream.Protocol.Messages;
 
 /// <summary>
 /// Basic ACK.
@@ -7,20 +9,20 @@ public readonly ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessa
 {
     public static ResponseType Type => ResponseType.Acknowledge;
     
-    static bool IMessage<AcknowledgeMessage>.TryRead<TReader>(ref TReader reader, out AcknowledgeMessage message, out int bytesToRead)
+    static bool IProtocolPrimitive<AcknowledgeMessage>.TryRead<TReader>(scoped ref TReader reader, out AcknowledgeMessage message, out int bytesToRead)
     {
         message = new AcknowledgeMessage();
         bytesToRead = 0;
         return true;
     }
 
-    void IMessage.Write<TWriter>(TWriter writer)
+    void IProtocolPrimitive<AcknowledgeMessage>.Write<TWriter>(TWriter writer)
     {
     }
     
     public static AcknowledgeMessage<TResult> WithResult<TResult>(TResult result) where TResult : unmanaged, Enum =>
         new(result);
-    
+   
 }
 
 /// <summary>
@@ -31,16 +33,16 @@ public readonly ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessa
 public readonly ref struct AcknowledgeMessage<TResult>(TResult result) : IResponseMessage<AcknowledgeMessage<TResult>>
     where TResult : unmanaged, Enum
 {
-    static bool IMessage<AcknowledgeMessage<TResult>>.TryRead<TReader>(ref TReader reader, out AcknowledgeMessage<TResult> message, out int bytesToRead)
+    static bool IProtocolPrimitive<AcknowledgeMessage<TResult>>.TryRead<TReader>(scoped ref TReader reader, out AcknowledgeMessage<TResult> message, out int bytesToRead)
     {
-        if (!reader.TryReadEnum<TResult>(out var enumValue, out bytesToRead))
+        if (reader.TryReadEnum<TResult>(out var enumValue, out bytesToRead))
         {
-            message = default;
-            return false;
+            message = new AcknowledgeMessage<TResult>(enumValue);
+            return true;
         }
         
-        message = new AcknowledgeMessage<TResult>(enumValue);
-        return true;
+        message = default;
+        return false;
     }
 
     public TResult Result { get; init; } = result;
@@ -49,6 +51,6 @@ public readonly ref struct AcknowledgeMessage<TResult>(TResult result) : IRespon
 
     public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
     {
-        writer.Write(Result);
+        writer.WriteEnum(Result);
     }
 }

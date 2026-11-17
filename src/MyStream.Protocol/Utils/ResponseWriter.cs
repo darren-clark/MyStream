@@ -2,6 +2,7 @@ using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 
 using MyStream.Protocol.Messages;
+using MyStream.Protocol.Primitives;
 
 namespace MyStream.Protocol;
 
@@ -15,7 +16,7 @@ public readonly struct ResponseWriter<TResponse>(PipeWriter writer)
     public void WriteResponse(TResponse message)
     {
         var primitiveWriter = new PrimitiveWriter(writer);
-        primitiveWriter.Write(TResponse.Type);
+        primitiveWriter.WriteEnum(TResponse.Type);
         message.Write(primitiveWriter);
     }
 

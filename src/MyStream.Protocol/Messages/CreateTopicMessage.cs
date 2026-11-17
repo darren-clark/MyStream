@@ -1,3 +1,4 @@
+using MyStream.Protocol.Primitives;
 using MyStream.Protocol.Responses;
 
 namespace MyStream.Protocol.Messages;
@@ -12,24 +13,18 @@ public readonly ref struct CreateTopicMessage : IRequestMessage<CreateTopicMessa
 
     public static MessageType Type => MessageType.CreateTopic;
 
-    static bool IMessage<CreateTopicMessage>.TryRead<TReader>(ref TReader reader, out CreateTopicMessage message,
+    static bool IProtocolPrimitive<CreateTopicMessage>.TryRead<TReader>(scoped ref TReader reader, out CreateTopicMessage message,
         out int bytesToRead)
     {
-        var tryReader = reader;
-        if (!tryReader.TryReadUtf8String(out var topicName, out bytesToRead) ||
-            !tryReader.TryReadInt16(out var partitionCount, out bytesToRead))
+        if (reader.TryReadPrimitive<RefUtf8String>(out var topicName, out bytesToRead) &&
+            reader.TryReadInt16(out var partitionCount, out bytesToRead))
         {
-            message = default;
-            return false;
+            message = new CreateTopicMessage { TopicName = topicName, PartitionCount = partitionCount };
+            return true;
         }
 
-        reader = tryReader;
-        message = new CreateTopicMessage
-        {
-            TopicName = topicName,
-            PartitionCount = partitionCount
-        };
-        return true;
+        message = default;
+        return false;
     }
 
     internal void Write<TWriter>(TWriter writer) where TWriter : IPrimitiveWriter, allows ref struct
@@ -38,5 +33,5 @@ public readonly ref struct CreateTopicMessage : IRequestMessage<CreateTopicMessa
         writer.Write(PartitionCount);
     }
 
-    void IMessage.Write<TWriter>(TWriter writer) => Write(writer);
+    void IProtocolPrimitive<CreateTopicMessage>.Write<TWriter>(TWriter writer) => Write(writer);
 }

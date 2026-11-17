@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Buffers.Binary;
 
+using MyStream.Protocol.Primitives;
+
 namespace MyStream.Protocol.Messages;
 
 /// <summary>
@@ -61,6 +63,7 @@ public readonly ref struct PartitionDescriptions
         for (var i = 0; i < Count; i++)
         {
             var description = this[i];
+            writer.Write(description.Partition);
             writer.Write(description.StartOffset);
             writer.Write(description.EndOffset);
         }
@@ -79,8 +82,9 @@ public readonly ref struct PartitionDescriptions
     }
 
     private static PartitionDescription Decode(ReadOnlySpan<byte> record) =>
-        new(BinaryPrimitives.ReadInt64BigEndian(record),
-            BinaryPrimitives.ReadInt64BigEndian(record[sizeof(long)..]));
+        new(BinaryPrimitives.ReadInt16BigEndian(record),
+            BinaryPrimitives.ReadInt64BigEndian(record[sizeof(short)..]),
+            BinaryPrimitives.ReadInt64BigEndian(record[(sizeof(long) + sizeof(long))..]));
 
     public ref struct Enumerator
     {

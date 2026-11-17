@@ -2,15 +2,18 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace MyStream;
+namespace MyStream.Protocol.Primitives;
 
 [method: MethodImpl(MethodImplOptions.AggressiveInlining)]
-public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveReader
+internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveReader
 {
     private SequenceReader<byte> reader = new(sequence);
 
     public ReadOnlySequence<byte> Remaining => this.reader.UnreadSequence;
+    public ReadOnlySequence<byte> GetRead() => this.reader.Sequence.Slice(0, this.reader.Remaining);
 
+    public void Advance(long position) => this.reader.Advance(position);
+    
     public long Consumed => this.reader.Consumed;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,7 +47,24 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
         bytesToRead = 0;
         return true;
     }
-    
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadUInt16(out ushort value, out int bytesToRead)
+    {
+        if (reader.Remaining < sizeof(ushort))
+        {
+            value = default;
+            bytesToRead = (int)(sizeof(ushort) - reader.Remaining);
+            return false;
+        }
+
+        var read = this.reader.TryReadBigEndian(out short signed);
+        Debug.Assert(read);
+        value = (ushort)signed;
+        bytesToRead = 0;
+        return true;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadInt32(out int value, out int bytesToRead)
     {
@@ -58,8 +78,7 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
         var read = this.reader.TryReadBigEndian(out value);
         Debug.Assert(read);
         bytesToRead = 0;
-        return true;
-    }
+        return true;    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadInt64(out long value, out int bytesToRead)
@@ -76,7 +95,7 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
         bytesToRead = 0;
         return true;
     }
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadUtf8String(out RefUtf8String value, out int bytesToRead)
     {
@@ -203,7 +222,20 @@ public ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiveR
                 ThrowHelpers.ThrowInvalidEnumSizeException<T>();
                 break;
         }
-        
+
+        return true;
+    }
+
+    public bool TryReadPrimitive<T>(out T value, out int bytesToRead) where T : struct, IProtocolPrimitive<T>, allows ref struct
+    {
+        var innerReader = new PrimitiveReader(reader.UnreadSequence);
+        if (!T.TryRead(ref innerReader, out value, out bytesToRead))
+        {
+            return false;
+        }   
+
+        reader.Advance(innerReader.Consumed);
+        bytesToRead = 0;
         return true;
     }
 }

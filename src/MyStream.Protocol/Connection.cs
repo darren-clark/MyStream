@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.IO.Pipelines;
 
+using MyStream.Protocol.Primitives;
+
 namespace MyStream.Protocol;
 
 /// <summary>

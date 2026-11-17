@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
+using MyStream.Protocol.Primitives;
+
 namespace MyStream.Server.Topics;
 
 public interface ITopicService

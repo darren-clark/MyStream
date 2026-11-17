@@ -1,9 +1,9 @@
 ﻿using System.Buffers;
 using System.Text;
 
-namespace MyStream;
+namespace MyStream.Protocol.Primitives;
 
-public class Utf8String: IEquatable<Utf8String>
+public readonly struct Utf8String: IEquatable<Utf8String>, IRefConvertible<Utf8String, RefUtf8String>
 {
     private readonly ReadOnlyMemory<byte> value;
 
@@ -22,12 +22,8 @@ public class Utf8String: IEquatable<Utf8String>
         this.value = value.ToArray();
     }
     
-    public bool Equals(Utf8String? other) =>
-        other switch
-        {
-            null => false,
-            _ => this.value.Span.SequenceEqual(other.value.Span)
-        };
+    public bool Equals(Utf8String other) =>
+        this.value.Span.SequenceEqual(other.value.Span);
 
     public override bool Equals(object? obj) =>
         obj switch
@@ -52,4 +48,25 @@ public class Utf8String: IEquatable<Utf8String>
 
     public static explicit operator Utf8String(string value) => new(value);
     public static explicit operator string (Utf8String value) => Encoding.UTF8.GetString(value.value.Span);
+    public static implicit operator RefUtf8String(Utf8String value) => new(value);
+    
+    public static bool TryRead<TReader>(scoped ref TReader reader, out Utf8String value, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
+    {
+        throw new NotImplementedException();
+    }
+    
+    public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public static bool operator ==(Utf8String left, Utf8String right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(Utf8String left, Utf8String right)
+    {
+        return !(left == right);
+    }
 }

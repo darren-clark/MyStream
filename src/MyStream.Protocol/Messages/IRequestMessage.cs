@@ -1,4 +1,6 @@
-﻿namespace MyStream.Protocol.Messages;
+﻿using MyStream.Protocol.Primitives;
+
+namespace MyStream.Protocol.Messages;
 
 public interface IRequestMessage
 {
@@ -9,20 +11,20 @@ public interface IRequestMessage
 public interface IStreamingRequestMessage : IRequestMessage;
 
 // Request message with no expected response.
-public interface IRequestMessage<TSelf> : IMessage<TSelf>, IRequestMessage
+public interface IRequestMessage<TSelf> : IProtocolPrimitive<TSelf>, IRequestMessage
     where TSelf : struct, IRequestMessage<TSelf>, allows ref struct;
 
 // Streaming request message with no expected response.
-public interface IStreamingRequestMessage<TSelf>: IMessage<TSelf>, IStreamingRequestMessage
+public interface IStreamingRequestMessage<TSelf>: IProtocolPrimitive<TSelf>, IStreamingRequestMessage
     where TSelf : struct, IStreamingRequestMessage<TSelf>, allows ref struct;
 
 // Request message with a response
-public interface IRequestMessage<TSelf, TResponseMessage> : IMessage<TSelf>, IRequestMessage
+public interface IRequestMessage<TSelf, TResponseMessage> : IProtocolPrimitive<TSelf>, IRequestMessage
     where TSelf : struct, IRequestMessage<TSelf, TResponseMessage>, allows ref struct
     where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
 
 // Streaming request message with a response
-public interface IStreamingRequestMessage<TSelf, TResponseMessage> :IMessage<TSelf>, IStreamingRequestMessage
+public interface IStreamingRequestMessage<TSelf, TResponseMessage> :IProtocolPrimitive<TSelf>, IStreamingRequestMessage
     where TSelf : struct, IStreamingRequestMessage<TSelf, TResponseMessage>, allows ref struct
     where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
 

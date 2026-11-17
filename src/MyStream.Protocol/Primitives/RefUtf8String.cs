@@ -1,15 +1,16 @@
 ﻿using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
+
 using static MyStream.ThrowHelpers;
 
-namespace MyStream;
+namespace MyStream.Protocol.Primitives;
 
 /// <summary>
 /// A UTF-8 string in one of three forms: contiguous UTF-8, split UTF-8 from a pipe, or still-UTF-16
 /// source text. The last defers transcoding to the write, so a string needs no intermediate buffer.
 /// </summary>
-public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IRefSerializable<RefUtf8String>
+public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IProtocolPrimitive<RefUtf8String>
 {
     private enum StoredForm: byte
     {
@@ -118,10 +119,8 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IRefSerializab
     public static implicit operator RefUtf8String(Utf8String value) => new(value);
     public static implicit operator RefUtf8String(string value) => new(value);
 
-    public bool Equals(Utf8String? other)
+    public bool Equals(Utf8String other)
     {
-        if (other == null) return false;
-
         var byteCount = GetByteCount();
         if (other.Memory.Length != byteCount)
         {
@@ -164,13 +163,14 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IRefSerializab
         }
     }
 
-    public static bool TryRead(SequenceReader<byte> reader, out RefUtf8String value, out long read, out long bytesNeeded)
+    
+    public static bool TryRead(SequenceReader<byte> reader, out RefUtf8String value, out int read, out int bytesNeeded)
     {
         if (!reader.TryReadBigEndian(out short length))
         {
             value = default;
             read = 0;
-            bytesNeeded = sizeof(short) - reader.UnreadSequence.Length;
+            bytesNeeded = sizeof(short) - (int) reader.UnreadSequence.Length;
             return false;
         }
 
@@ -178,12 +178,12 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IRefSerializab
         {
             value = default;
             read = 0; 
-            bytesNeeded = length - reader.UnreadSequence.Length;
+            bytesNeeded = length - (int) reader.UnreadSequence.Length;
             return false;
         }
         
         value = new RefUtf8String(buffer);
-        read = reader.Consumed;
+        read = (int) reader.Consumed;
         bytesNeeded = 0;
         return true;
     }
@@ -216,5 +216,29 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IRefSerializab
                 break;
         }
         return hashCode.ToHashCode();
+    }
+
+
+    public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+    {
+        throw new NotImplementedException();
+    }
+
+    public static bool TryRead<TReader>(scoped ref TReader reader, out RefUtf8String message, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
+    {
+        if (!reader.TryReadInt16(out var length, out bytesToRead))
+        {
+            message = default;
+            return false;
+        }
+
+        if (!reader.TryReadExact(length, out var buffer, out bytesToRead))
+        {
+            message = default;
+            return false;
+        }
+        
+        message = new RefUtf8String(buffer);
+        return true;
     }
 }

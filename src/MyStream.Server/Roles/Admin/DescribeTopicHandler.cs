@@ -2,6 +2,7 @@ using System.Buffers;
 
 using MyStream.Protocol;
 using MyStream.Protocol.Messages;
+using MyStream.Protocol.Primitives;
 using MyStream.Server.Topics;
 
 namespace MyStream.Server.Roles.Admin;
@@ -38,7 +39,7 @@ public readonly struct DescribeTopicHandler(ITopicService topicService):
             responseWriter.WriteResponse(new DescribeTopicResponseMessage
             {
                 Result = DescribeTopicResult.Success,
-                Partitions = new PartitionDescriptions(descriptions)
+                Partitions =new (descriptions)
             });
         }
         finally

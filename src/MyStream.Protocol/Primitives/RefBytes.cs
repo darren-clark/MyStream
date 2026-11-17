@@ -1,12 +1,14 @@
 using System.Buffers;
 
+using MyStream.Protocol.Primitives;
+
 namespace MyStream;
 
 /// <summary>
 /// A bounded run of opaque bytes read from, or written to, the wire. Span-backed when contiguous so
 /// a caller may pass stack memory, and sequence-backed only when the pipe split it.
 /// </summary>
-public readonly ref struct RefBytes
+public readonly ref struct RefBytes: IProtocolPrimitive<RefBytes>
 {
     private readonly ReadOnlySpan<byte> span;
     private readonly ReadOnlySequence<byte> sequence;
@@ -50,4 +52,35 @@ public readonly ref struct RefBytes
     public static implicit operator RefBytes(ReadOnlySpan<byte> value) => new(value);
 
     public static implicit operator RefBytes(byte[]? value) => new(value.AsSpan());
+    public void Write<TWriter>(TWriter writer) where TWriter : struct, IPrimitiveWriter, allows ref struct
+    {
+        if (this.sequence.IsEmpty)
+        {
+            writer.Write((short)this.span.Length);
+            writer.Write(this.span);
+        }
+        else
+        {
+            writer.Write((short)this.sequence.Length);
+            writer.Write(this.sequence);
+        }
+    }
+
+    public static bool TryRead<TReader>(scoped ref TReader reader, out RefBytes value, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
+    {
+        if (!reader.TryReadInt16(out var length, out bytesToRead))
+        {
+            value = default;
+            return false;
+        }
+
+        if (!reader.TryReadExact(length, out var buffer, out bytesToRead))
+        {
+            value = default;
+            return false;
+        }
+
+        value = new RefBytes(buffer);
+        return true;
+    }
 }

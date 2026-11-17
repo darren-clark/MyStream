@@ -1,3 +1,6 @@
+using MyStream.Protocol;
+using MyStream.Protocol.Primitives;
+
 namespace MyStream.Server.Topics;
 
 public interface ITopicPartition

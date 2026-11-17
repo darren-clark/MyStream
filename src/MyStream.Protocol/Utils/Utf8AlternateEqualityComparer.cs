@@ -1,4 +1,6 @@
-namespace MyStream;
+using MyStream.Protocol.Primitives;
+
+namespace MyStream.Protocol;
 
 internal class Utf8AlternateEqualityComparer :
     IEqualityComparer<Utf8String>,
@@ -12,12 +14,7 @@ internal class Utf8AlternateEqualityComparer :
 
     public Utf8String Create(RefUtf8String alternate) => (Utf8String)alternate;
 
-    public bool Equals(Utf8String? x, Utf8String? y) => (x, y) switch
-    {
-        (null, null) => true,
-        (not null, not null) => x.Equals(y),
-        _ => false
-    };
+    public bool Equals(Utf8String x, Utf8String y) => x.Equals(y);
 
     public int GetHashCode(Utf8String obj) => obj.GetHashCode();
 }
