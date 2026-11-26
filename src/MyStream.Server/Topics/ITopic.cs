@@ -5,8 +5,12 @@ using MyStream.Protocol.Primitives;
 
 namespace MyStream.Server.Topics;
 
+
+public record struct PartitionReference(long Version, short PartitionId, long Index);
+
 public interface ITopic
 {
+    
     /// <summary>Owned by the topic, so a parked request can name it without the buffer it arrived in.</summary>
     Utf8String Name { get; }
 
@@ -14,7 +18,8 @@ public interface ITopic
     int PartitionCount { get; }
 
     bool TryGetPartition(short partitionId, [NotNullWhen(true)] out ITopicPartition? topicPartition);
-
+    bool TryGetPartitionReference(short partitionId, [NotNullWhen(true)] out PartitionReference? reference);
+    ITopicPartition GetPartitionByIndex(short index);
     void Describe(Span<PartitionDescription> destination);
-    IReadOnlyCollection<ITopicPartition> GetOwnedPartitions();
+    IReadOnlyCollection<ITopicPartition> GetPartitions();
 }

@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/MyStream.Protocol/MyStream.Protocol.csproj" />
+    <Project Path="src/MyStream.Server.InMemory/MyStream.Server.InMemory.csproj" />
     <Project Path="src/MyStream.Server/MyStream.Server.csproj" />
     <Project Path="src/MyStream.Shared/MyStream.Shared.csproj" />
   </Folder>

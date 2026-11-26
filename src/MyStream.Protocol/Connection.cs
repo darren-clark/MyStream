@@ -74,14 +74,14 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
 
                         // The awaiting caller holds the buffer until it says it is done with it.
                         await answered.BodyDrained.ConfigureAwait(false);
-                        buffer = await this.BodyReader.FinishAsync(cancellationToken).ConfigureAwait(false);
+                        buffer = await this.ResponseBodyReader.FinishAsync(cancellationToken).ConfigureAwait(false);
                         streamed = true;
                         break;
                     }
                     
                     // Incoming request path.
                     var dispatch = new Dispatcher(primitiveReader, this.Writer,
-                        this.BodyReader, cancellationToken);
+                        this.ResponseBodyReader, cancellationToken);
 
                     var dispatched = this.handler.TryParseAndDispatch((MessageType)typeByte, ref dispatch);
 
@@ -97,7 +97,7 @@ public sealed class Connection<THandler> : ConnectionBase where THandler : struc
                         // the dispatch reader points into, so the body reader's buffer is the only
                         // valid one from here.
                         await dispatched.Task.ConfigureAwait(false);
-                        buffer = await this.BodyReader
+                        buffer = await this.ResponseBodyReader
                             .FinishAsync(cancellationToken)
                             .ConfigureAwait(false);
 

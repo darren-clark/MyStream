@@ -30,7 +30,7 @@ public readonly ref struct AcknowledgeMessage: IResponseMessage<AcknowledgeMessa
 /// </summary>
 /// <param name="result"></param>
 /// <typeparam name="TResult"></typeparam>
-public readonly ref struct AcknowledgeMessage<TResult>(TResult result) : IResponseMessage<AcknowledgeMessage<TResult>>
+public readonly struct AcknowledgeMessage<TResult>(TResult result) : IResponseMessage<AcknowledgeMessage<TResult>>
     where TResult : unmanaged, Enum
 {
     static bool IProtocolPrimitive<AcknowledgeMessage<TResult>>.TryRead<TReader>(scoped ref TReader reader, out AcknowledgeMessage<TResult> message, out int bytesToRead)

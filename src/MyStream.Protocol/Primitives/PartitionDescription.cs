@@ -28,4 +28,7 @@ public readonly record struct PartitionDescription(short Partition, long StartOf
         value = default;
         return false;
     }
+
+    public bool IsValidOffset(long offset) => offset >= StartOffset && offset <= EndOffset; 
+
 }

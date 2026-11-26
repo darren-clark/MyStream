@@ -10,3 +10,8 @@ public interface IResponseMessage<TSelf> : IProtocolPrimitive<TSelf>
 {
     internal static abstract ResponseType Type { get; }
 }
+
+public interface IStreamingResponseMessage<TSelf> : IResponseMessage<TSelf>
+    where TSelf : struct, IStreamingResponseMessage<TSelf>, allows ref struct
+{
+}

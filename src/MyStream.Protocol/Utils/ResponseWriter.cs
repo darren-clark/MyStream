@@ -27,6 +27,18 @@ public readonly struct ResponseWriter<TResponse>(PipeWriter writer)
     public MessageBodyWriter BeginBody() => new(writer);
 }
 
+public readonly struct StreamingResponseWriter<THeader>(PipeWriter writer)
+    where THeader : struct, IResponseMessage<THeader>, allows ref struct
+{
+    public PipeWriter WriteHeader(THeader header)
+    {
+        var primitiveWriter = new PrimitiveWriter(writer);
+        primitiveWriter.WriteEnum(THeader.Type);
+        header.Write(primitiveWriter);
+        return writer;
+    }
+}
+
 public static class ResponseWriter
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

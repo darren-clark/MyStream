@@ -14,4 +14,9 @@ internal static class ThrowHelpers
     [StackTraceHidden]
     public static void ThrowInvalidLength(int length, int maximum)
         => throw new InvalidOperationException($"Declared length {length} is outside the allowed range 0 to {maximum}.");
+    
+    [DoesNotReturn]
+    [StackTraceHidden]
+    public static void ThrowIncorrectSize(int expected, int actual)
+     => throw new InvalidOperationException($"Incorrect size. Expected {expected}, but got {actual}.");
 }

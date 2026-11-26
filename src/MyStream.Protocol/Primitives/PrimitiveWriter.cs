@@ -52,6 +52,9 @@ public readonly struct PrimitiveWriter(PipeWriter writer) : IPrimitiveWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Write(TimeSpan value) => this.Write(value.Ticks);
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Write(ReadOnlySpan<byte> value) =>  writer.Write(value);
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

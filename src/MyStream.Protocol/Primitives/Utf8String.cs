@@ -48,6 +48,7 @@ public readonly struct Utf8String: IEquatable<Utf8String>, IRefConvertible<Utf8S
 
     public static explicit operator Utf8String(string value) => new(value);
     public static explicit operator string (Utf8String value) => Encoding.UTF8.GetString(value.value.Span);
+    
     public static implicit operator RefUtf8String(Utf8String value) => new(value);
     
     public static bool TryRead<TReader>(scoped ref TReader reader, out Utf8String value, out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct

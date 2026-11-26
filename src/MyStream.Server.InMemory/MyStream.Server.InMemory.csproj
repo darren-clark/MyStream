@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\MyStream.Server\MyStream.Server.csproj" />
+  </ItemGroup>
+</Project>

@@ -33,6 +33,7 @@ public enum MessageType: byte
     /// </summary>
     LeaveGroup = 11,
     InitProducer = 12,
+    InitConsumer = 13,
 }
 
 /// <summary>Responses: the high bit is set.</summary>
@@ -43,4 +44,5 @@ public enum ResponseType: byte
     DescribeTopic = ProtocolConstants.ResponseFlag | 2,
     Fetch = ProtocolConstants.ResponseFlag | 3,
     InitProducer = ProtocolConstants.ResponseFlag | 4,
+    InitConsumer = ProtocolConstants.ResponseFlag | 5,
 }

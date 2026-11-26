@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks.Sources;
 
 namespace MyStream.Protocol;
@@ -28,10 +29,12 @@ internal sealed class ResponseCompletionSource<T> : ResponseCompletionSource, IV
 
     public override bool TrySetResult<T1>(T1 value)
     {
-        if (value is not T typed) return false;
+        // Don't use isinst to avoid boxing a struct at the cost
+        // of not supported inheritance in messages.
+        if (typeof(T) == typeof(T1)) return false;
         if (Interlocked.Exchange(ref this.completed, 1) != 0) return false;
 
-        this.core.SetResult(typed);
+        this.core.SetResult(Unsafe.As<T1,T>(ref value));
         return true;
     }
 

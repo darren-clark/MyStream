@@ -20,6 +20,31 @@ public readonly ref struct PrimitiveList<T> :
         this.itemSpan = items;
     }
 
+    public void CopyTo(Span<T> destination)
+    {
+        if (destination.Length != this.Count)
+        {
+            ThrowHelpers.ThrowIncorrectSize(this.Count, destination.Length);
+        }
+
+        if (this.itemSpan.IsEmpty)
+        {
+            var reader = new PrimitiveReader(this.itemBuffer);
+            for (int i = 0; i < this.Count; i++)
+            {
+                var read = T.TryRead(ref reader, out var item, out _);
+                if (!read)
+                {
+                    ThrowHelpers.ThrowIncorrectSize(this.Count, i);
+                }
+                destination[i] = item;
+            }
+        }
+        else
+        {
+            this.itemSpan.CopyTo(destination);
+        }
+    }
     public ushort Count { get; }
 
     public Enumerator GetEnumerator() => new Enumerator(this);

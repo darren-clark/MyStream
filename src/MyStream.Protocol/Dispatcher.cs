@@ -19,6 +19,13 @@ public delegate ValueTask StreamingRequestHandler<TRequestMessage, TResponseMess
     where TRequestMessage : struct, IStreamingRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
     where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
 
+public delegate ValueTask RequestWithStreamingResponseHandler< in TRequestMessage, TResponseMessage>(
+    TRequestMessage request, 
+    StreamingResponseWriter<TResponseMessage> responseWriter, 
+    CancellationToken cancellationToken)
+    where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
+
 /// <summary>
 /// Everything a dispatch needs, bundled so a handler's switch names only the message types it
 /// serves. Passed by ref and owns the reader rather than referencing one, because a ref field
@@ -29,10 +36,10 @@ public ref struct Dispatcher
 {
     private PrimitiveReader reader;
     private readonly PipeWriter writer;
-    private readonly MessageBodyReader body;
+    private readonly ChunkedPipeReader body;
     private readonly CancellationToken cancellationToken;
 
-    internal Dispatcher(PrimitiveReader reader, PipeWriter writer, MessageBodyReader body,
+    internal Dispatcher(PrimitiveReader reader, PipeWriter writer, ChunkedPipeReader body,
         CancellationToken cancellationToken)
     {
         this.reader = reader;

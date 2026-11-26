@@ -28,3 +28,6 @@ public interface IStreamingRequestMessage<TSelf, TResponseMessage> :IProtocolPri
     where TSelf : struct, IStreamingRequestMessage<TSelf, TResponseMessage>, allows ref struct
     where TResponseMessage : struct, IResponseMessage<TResponseMessage>, allows ref struct;
 
+public interface IRequestMessageWithStreamingResponse<TSelf, TResponseMessage>: IProtocolPrimitive<TSelf>, IRequestMessage
+    where TSelf : struct, IRequestMessageWithStreamingResponse<TSelf, TResponseMessage>, allows ref struct
+    where TResponseMessage : struct, IStreamingResponseMessage<TResponseMessage>, allows ref struct;

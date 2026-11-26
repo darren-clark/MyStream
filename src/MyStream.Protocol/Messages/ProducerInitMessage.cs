@@ -2,9 +2,9 @@
 
 namespace MyStream.Protocol.Messages;
 
-public readonly ref struct InitProducerMessage : IRequestMessage<InitProducerMessage, InitProducerResponseMessage>
+public readonly ref struct ProducerInitRequestMessage : IRequestMessage<ProducerInitRequestMessage, ProducerInitResponseMessage>
 {
-    private InitProducerMessage(PrimitiveList<Utf8String, RefUtf8String> topics)
+    private ProducerInitRequestMessage(PrimitiveList<Utf8String, RefUtf8String> topics)
     {
         this.Topics = topics;
     }
@@ -12,8 +12,8 @@ public readonly ref struct InitProducerMessage : IRequestMessage<InitProducerMes
     public PrimitiveList<Utf8String, RefUtf8String> Topics { get; }
 
 
-    static bool IProtocolPrimitive<InitProducerMessage>.TryRead<TReader>(scoped ref TReader reader,
-        out InitProducerMessage message, out int bytesToRead)
+    static bool IProtocolPrimitive<ProducerInitRequestMessage>.TryRead<TReader>(scoped ref TReader reader,
+        out ProducerInitRequestMessage message, out int bytesToRead)
     {
         if (!reader.TryReadPrimitive<PrimitiveList<Utf8String, RefUtf8String>>(out var topics, out bytesToRead))
         {
@@ -21,7 +21,7 @@ public readonly ref struct InitProducerMessage : IRequestMessage<InitProducerMes
             return false;
         }
 
-        message = new InitProducerMessage(topics);
+        message = new ProducerInitRequestMessage(topics);
         return true;
     }
 
@@ -33,12 +33,12 @@ public readonly ref struct InitProducerMessage : IRequestMessage<InitProducerMes
     public static MessageType Type => MessageType.InitProducer;
 }
 
-public readonly ref struct InitProducerResponseMessage : IResponseMessage<InitProducerResponseMessage>
+public readonly ref struct ProducerInitResponseMessage : IResponseMessage<ProducerInitResponseMessage>
 {
     public required InitProducerResult Result { get; init; }
     public required PrimitiveList<OwnedPartition> OwnedPartitions { get; init; }
 
-    public static bool TryRead<TReader>(scoped ref TReader reader, out InitProducerResponseMessage value,
+    public static bool TryRead<TReader>(scoped ref TReader reader, out ProducerInitResponseMessage value,
         out int bytesToRead) where TReader : IPrimitiveReader, allows ref struct
     {
         if (!reader.TryReadEnum<InitProducerResult>(out var result, out bytesToRead))
@@ -49,13 +49,13 @@ public readonly ref struct InitProducerResponseMessage : IResponseMessage<InitPr
     
         if (result != InitProducerResult.Success)
         {
-            value = new InitProducerResponseMessage { Result = result, OwnedPartitions = default};
+            value = new ProducerInitResponseMessage { Result = result, OwnedPartitions = default};
             return true;
         }
 
         if (reader.TryReadPrimitive(out PrimitiveList<OwnedPartition> ownedPartitions, out bytesToRead))
         {
-            value = new InitProducerResponseMessage { Result = result, OwnedPartitions = ownedPartitions };
+            value = new ProducerInitResponseMessage { Result = result, OwnedPartitions = ownedPartitions };
             return true;
         }
 
@@ -74,7 +74,7 @@ public readonly ref struct InitProducerResponseMessage : IResponseMessage<InitPr
 
     public static ResponseType Type => ResponseType.InitProducer;
     
-    public static InitProducerResponseMessage UnknownTopic() => new() { Result = InitProducerResult.UnknownTopic, OwnedPartitions = default };
+    public static ProducerInitResponseMessage UnknownTopic() => new() { Result = InitProducerResult.UnknownTopic, OwnedPartitions = default };
 }
 
 public readonly record struct OwnedPartition(short PartitionIndex, short Partition) : IProtocolPrimitive<OwnedPartition>

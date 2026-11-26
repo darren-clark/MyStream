@@ -9,7 +9,7 @@ namespace MyStream.Protocol;
 
 /// <summary>
 /// Writes a chunked body, so a producer can emit one without knowing its length. The mirror of
-/// <see cref="MessageBodyReader"/>: bytes written here come back out of that as a plain pipe.
+/// <see cref="ChunkedPipeReader"/>: bytes written here come back out of that as a plain pipe.
 /// </summary>
 /// <remarks>
 /// A PipeWriter so that anything able to write to a pipe - <see cref="PrimitiveWriter"/> included -

@@ -8,14 +8,10 @@ using MyStream.Protocol.Primitives;
 namespace MyStream.Protocol;
 
 /// <summary>
-/// Presents one message's chunked body as a plain <see cref="PipeReader"/>, so a handler reads a
+/// Reusable class that presents a chunked body as a plain <see cref="PipeReader"/>, so a handler reads a
 /// payload the same way it would read any pipe and never sees the framing.
 /// </summary>
-/// <remarks>
-/// One per connection, reset per message, so handing a handler its body allocates nothing. Buffers
-/// are the connection's pipe memory and stay valid only until the next read, exactly as for a pipe.
-/// </remarks>
-public sealed class MessageBodyReader(PipeReader inner) : PipeReader
+public sealed class ChunkedPipeReader(PipeReader inner) : PipeReader
 {
     private ReadOnlySequence<byte> buffer;
     private long? declaredSize;

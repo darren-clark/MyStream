@@ -35,12 +35,9 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
 
     protected PipeWriter Writer => writer;
 
-    /// <summary>
-    /// Shared by both halves: a request body belongs to the handler, a response body to whoever is
-    /// awaiting. Only one of the two can be in flight, so one reader serves both.
-    /// </summary>
-    /// TODO: Fix this.
-    private protected MessageBodyReader BodyReader { get; } = new(reader);
+    // Reusable wrapped pipe reader for streaming responses.
+    // Used both on the write side(to write streaming response) and read side(to accept a streaming response).
+    protected ChunkedPipeReader ResponseBodyReader { get; } = new(reader);
 
     public abstract Task Start(CancellationToken cancellationToken);
     
@@ -143,23 +140,53 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
             writer.FlushAsync(cancellationToken),
             completionSource,
             cancellationToken.Register(static c => ((ResponseCompletionSource<TResponse>)c!).Cancel(), completionSource));
-        
-        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
-        static async ValueTask<TResponse> SendAndWait(ConnectionBase connectionBase,
-            ValueTask<FlushResult> writerTask,
-            ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
+    }
+    
+    public ValueTask<TResponseMessage> SendMessage<TRequestMessage, TResponseMessage>(
+        TRequestMessage requestMessage, CancellationToken cancellationToken)
+        where TRequestMessage : struct, IRequestMessage<TRequestMessage, TResponseMessage>, allows ref struct
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>
+    {
+        BeginSend();
+        ResponseCompletionSource<TResponseMessage> completionSource;
+        try
         {
-            try
-            {
-                await writerTask.ConfigureAwait(false);
-                return await responseCompletion.ValueTask.ConfigureAwait(false);
-            }
-            finally
-            {
-                await cancellation.DisposeAsync().ConfigureAwait(false);
-                connectionBase.EndSend();
-            }
-        }        
+            completionSource = this.cachedCompletionSources.Get<TResponseMessage>();
+            this.responseCompletionSource = completionSource;
+            this.parser = TryParseAndComplete<TResponseMessage>;
+
+            var primitiveWriter = new PrimitiveWriter(writer);
+            primitiveWriter.WriteEnum(TRequestMessage.Type);
+            requestMessage.Write(primitiveWriter);
+        }
+        catch
+        {
+            EndSend();
+            throw;
+        }
+
+        return SendAndWait(
+            this,
+            writer.FlushAsync(cancellationToken),
+            completionSource,
+            cancellationToken.Register(static c => ((ResponseCompletionSource<TResponseMessage>)c!).Cancel(), completionSource));
+    }
+    
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    static async ValueTask<TResponse> SendAndWait<TResponse>(ConnectionBase connectionBase,
+        ValueTask<FlushResult> writerTask,
+        ResponseCompletionSource<TResponse> responseCompletion, CancellationTokenRegistration cancellation)
+    {
+        try
+        {
+            await writerTask.ConfigureAwait(false);
+            return await responseCompletion.ValueTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            await cancellation.DisposeAsync().ConfigureAwait(false);
+            connectionBase.EndSend();
+        }
     }
     
     /// <summary>
@@ -392,6 +419,25 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
         return ResponseParseResult.Completed();
     }
     
+    private static ResponseParseResult TryParseAndComplete<TResponseMessage>(ConnectionBase connectionBase,
+        ResponseType responseType, ref PrimitiveReader reader)
+        where TResponseMessage : struct, IResponseMessage<TResponseMessage>
+    {
+        if (responseType != TResponseMessage.Type)
+        {
+            ThrowWrongResponse(responseType, TResponseMessage.Type);
+        }
+
+        if (!TResponseMessage.TryRead(ref reader, out var response, out var bytesNeeded))
+        {
+            return ResponseParseResult.Insufficient(bytesNeeded);
+        }
+
+        connectionBase.parser = null;
+        connectionBase.responseCompletionSource!.TrySetResult(response);
+        return ResponseParseResult.Completed();
+    }
+    
     /// <summary>
     /// Method group to be assigned to this.parser for streamed responses.
     /// </summary>
@@ -410,8 +456,8 @@ public abstract class ConnectionBase(PipeReader reader, PipeWriter writer)
             return ResponseParseResult.Insufficient(bytesNeeded);
         }
 
-        connectionBase.BodyReader.Begin(declaredSize: null, reader.Remaining);
-        var response = TResponse.CreateResponse(in header, connectionBase.BodyReader);
+        connectionBase.ResponseBodyReader.Begin(declaredSize: null, reader.Remaining);
+        var response = TResponse.CreateResponse(in header, connectionBase.ResponseBodyReader);
 
         connectionBase.parser = null;
         connectionBase.responseCompletionSource!.TrySetResult(response);

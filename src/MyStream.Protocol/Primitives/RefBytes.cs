@@ -74,7 +74,7 @@ public readonly ref struct RefBytes: IProtocolPrimitive<RefBytes>
             return false;
         }
 
-        if (!reader.TryReadExact(length, out var buffer, out bytesToRead))
+        if (!reader.TryReadBytes(length, out var buffer, out bytesToRead))
         {
             value = default;
             return false;

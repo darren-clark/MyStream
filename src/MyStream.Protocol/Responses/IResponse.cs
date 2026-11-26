@@ -32,3 +32,9 @@ public interface IStreamingResponse<TResponseMessage, out TResponse> : IStreamin
 {
     internal static abstract TResponse CreateResponse(ref readonly TResponseMessage header, PipeReader body);
 }
+
+public interface IStreamingResponse<TResponseMessage> : IStreamingResponse
+    where TResponseMessage : struct, IResponseMessage<TResponseMessage>
+{
+}
+    

@@ -115,10 +115,9 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IProtocolPrimi
             _ => ThrowInvalidOperation<string>("Invalid stored form")
         };
 
-    // These just wrap the buffer with no new allocations, so implicit 
-    public static implicit operator RefUtf8String(Utf8String value) => new(value);
+    // Wraps string buffer, so implicit
     public static implicit operator RefUtf8String(string value) => new(value);
-
+    
     public bool Equals(Utf8String other)
     {
         var byteCount = GetByteCount();
@@ -164,30 +163,6 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IProtocolPrimi
     }
 
     
-    public static bool TryRead(SequenceReader<byte> reader, out RefUtf8String value, out int read, out int bytesNeeded)
-    {
-        if (!reader.TryReadBigEndian(out short length))
-        {
-            value = default;
-            read = 0;
-            bytesNeeded = sizeof(short) - (int) reader.UnreadSequence.Length;
-            return false;
-        }
-
-        if (!reader.TryReadExact(length, out var buffer))
-        {
-            value = default;
-            read = 0; 
-            bytesNeeded = length - (int) reader.UnreadSequence.Length;
-            return false;
-        }
-        
-        value = new RefUtf8String(buffer);
-        read = (int) reader.Consumed;
-        bytesNeeded = 0;
-        return true;
-    }
-
     public override int GetHashCode()
     {
         // We'll need to write to temp buffer if it's either a utf-16 string
@@ -232,7 +207,7 @@ public readonly ref struct RefUtf8String: IEquatable<Utf8String>, IProtocolPrimi
             return false;
         }
 
-        if (!reader.TryReadExact(length, out var buffer, out bytesToRead))
+        if (!reader.TryReadBytes(length, out var buffer, out bytesToRead))
         {
             message = default;
             return false;

@@ -78,7 +78,8 @@ internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiv
         var read = this.reader.TryReadBigEndian(out value);
         Debug.Assert(read);
         bytesToRead = 0;
-        return true;    }
+        return true;
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadInt64(out long value, out int bytesToRead)
@@ -97,89 +98,25 @@ internal ref struct PrimitiveReader(ReadOnlySequence<byte> sequence) : IPrimitiv
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryReadUtf8String(out RefUtf8String value, out int bytesToRead)
+    public bool TryReadTimeSpan(out TimeSpan value, out int bytesToRead)
     {
-        if (!TryReadInt16(out var length, out bytesToRead))
+        if (reader.Remaining < sizeof(long))
         {
-            value = default;
+            value = TimeSpan.Zero;
+            bytesToRead = (int)(sizeof(long) - reader.Remaining);
             return false;
         }
 
-        // Unsigned so a negative length is rejected by the same comparison as an oversized one.
-        if ((uint)length > ProtocolConstants.MaxStringSize)
-        {
-            ThrowHelpers.ThrowInvalidLength(length, ProtocolConstants.MaxStringSize);
-        }
-
-        if (reader.Remaining < length)
-        {
-            value = default;
-            bytesToRead = (int)(length - reader.Remaining);
-            return false;
-        }
-
-        var read = this.reader.TryReadExact(length, out var buffer);
+        var read = this.reader.TryReadBigEndian(out long ticks);
         Debug.Assert(read);
-        Span<byte> span = stackalloc byte[length];
-        
-        value = new RefUtf8String(buffer);
-        bytesToRead = 0;
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryReadMessageType(out MessageType messageType, out int bytesToRead)
-    {
-        if (reader.Remaining < sizeof(byte))
-        {
-            messageType = default;
-            bytesToRead = 1;
-            return false;
-        }
-
-        var read = this.reader.TryRead(out var value);
-        Debug.Assert(read);
-        messageType = (MessageType)value;
+        value = new TimeSpan(ticks);
         bytesToRead = 0;
         return true;
     }
     
-    /// <summary>A length-prefixed run of opaque bytes, bounded by the caller's limit.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryReadBytes(int maximum, out RefBytes value, out int bytesToRead)
-    {
-        if (!TryReadLengthPrefixed(maximum, out var buffer, out bytesToRead))
-        {
-            value = default;
-            return false;
-        }
-
-        value = new RefBytes(buffer);
-        return true;
-    }
-
-    /// <summary>As <see cref="TryReadBytes"/>, but left as a sequence for a non ref struct to hold.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryReadLengthPrefixed(int maximum, out ReadOnlySequence<byte> value, out int bytesToRead)
-    {
-        if (!TryReadInt32(out var length, out bytesToRead))
-        {
-            value = default;
-            return false;
-        }
-
-        // Unsigned so a negative length is rejected by the same comparison as an oversized one.
-        if ((uint)length > (uint)maximum)
-        {
-            ThrowHelpers.ThrowInvalidLength(length, maximum);
-        }
-
-        return TryReadExact(length, out value, out bytesToRead);
-    }
-
     /// <summary>A run of bytes whose length the caller already knows, left as a view over the buffer.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryReadExact(int length, out ReadOnlySequence<byte> value, out int bytesToRead)
+    public bool TryReadBytes(int length, out ReadOnlySequence<byte> value, out int bytesToRead)
     {
         if (reader.Remaining < length)
         {

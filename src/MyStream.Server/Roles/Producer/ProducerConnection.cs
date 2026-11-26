@@ -20,11 +20,11 @@ internal sealed class ProducerConnection
 
 
     // Cache delegates, the compiler won't do it for instance methods.
-    public RequestHandler<InitProducerMessage, InitProducerResponseMessage> InitHandler { get; }
+    public RequestHandler<ProducerInitRequestMessage, ProducerInitResponseMessage> InitHandler { get; }
 
     public StreamingRequestHandler<ProduceEventMessage, AcknowledgeMessage<ProduceResult>> ProduceEventHandler { get; }
 
-    private ValueTask Init(InitProducerMessage message, ResponseWriter<InitProducerResponseMessage> responseWriter,
+    private ValueTask Init(ProducerInitRequestMessage message, ResponseWriter<ProducerInitResponseMessage> responseWriter,
         CancellationToken cancellationToken)
     {
         topics.Clear();
@@ -34,25 +34,25 @@ internal sealed class ProducerConnection
         {
             if (!topicService.TryGetTopic(topicName, out var topic))
             {
-                responseWriter.WriteResponse(InitProducerResponseMessage.UnknownTopic());
+                responseWriter.WriteResponse(ProducerInitResponseMessage.UnknownTopic());
                 return default;
             }
 
             topics[topicIndex++] = topic;
-            partitionCounts += topic.GetOwnedPartitions().Count;
+            partitionCounts += topic.GetPartitions().Count;
         }
 
         Span<OwnedPartition> ownedPartitions = stackalloc OwnedPartition[partitionCounts];
         foreach (var topic in topics)
         {
             var ownedIndex = 0;
-            foreach (var partition in topic.Value.GetOwnedPartitions())
+            foreach (var partition in topic.Value.GetPartitions())
             {
                 ownedPartitions[ownedIndex++] = new OwnedPartition(topic.Key, partition.PartitionId);
             }
         }
 
-        var response = new InitProducerResponseMessage
+        var response = new ProducerInitResponseMessage
         {
             Result = InitProducerResult.Success, OwnedPartitions = new(ownedPartitions)
         };
